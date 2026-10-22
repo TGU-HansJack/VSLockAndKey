@@ -1,13 +1,15 @@
 # Mechanical Locks & Keys
 
+Release notes / 更新日志：[CHANGELOG.md](CHANGELOG.md)
+
 Mechanical Locks & Keys is a Vintage Story fork of Arkzenir's Lock & Key mod. It replaces identity-bound locks with physical key profiles: anyone holding a finished key whose filed blade matches the cylinder can operate that lock. The fork removes player/group ownership and permission-based key matching.
 
-This fork uses mod ID `vsmechanicallocks`, version `1.0.1`, and targets the Vintage Story `1.22.x` series. It is built and automated-tested against `1.22.7`. The new mod ID, asset domain, and storage namespace mean old `vslockandkey` worlds and item codes are not migrated; use a new world.
+This fork uses mod ID `vsmechanicallocks`, version `1.0.2`, and targets the Vintage Story `1.22.x` series. It is built and automated-tested against `1.22.7`. The new mod ID, asset domain, and storage namespace mean old `vslockandkey` worlds and item codes are not migrated; use a new world.
 
 ## Making and using keys
 
 1. Cast or smith a solid key blank.
-2. Hold the key in the main hand and a file in the offhand, then right-click air. Select the outer or inner blade layer, choose one of its eight teeth, and hold File. Each one-second stroke removes one height step and costs one file durability. Cuts cannot be undone.
+2. Hold the key in the main hand and a file in the offhand, then right-click air. Drag the key preview left or right with the left mouse button to rotate it through 360°. Select the outer or inner blade layer, choose one of its eight teeth, and hold File. The selected tooth has a red cuboid outline on the 3D preview that follows its remaining metal and rotates with the key. Each one-second stroke removes one height step and costs one file durability. Cuts cannot be undone.
 3. Make at least one cut and choose Finish. Further filing makes the key unfinished again. Jeweling preserves its profile; material and gems do not affect matching.
 4. Install a vanilla padlock on a lockable door or container with a right-click. A new lock is unconfigured and unlocked.
 5. Hold Ctrl and right-click an unconfigured lock with a finished individual key to fit its cylinder. The lock remains unlocked.
@@ -36,7 +38,7 @@ dotnet run --project tests/Mechanical.Tests.csproj -- "C:/Games/VintageStory"
 dotnet build VSMechanicalLocks.csproj -c Release
 ```
 
-The release build creates `Releases/vsmechanicallocks_1.0.1.zip`. Automated coverage and the in-game test checklist are in [TESTING.md](TESTING.md).
+The release build creates `Releases/vsmechanicallocks_1.0.2.zip`. Automated coverage and the in-game test checklist are in [TESTING.md](TESTING.md).
 
 ## Credits and license
 
@@ -46,12 +48,12 @@ This project is based on [Arkzenir's Lock & Key](https://github.com/Arkzenir/VSL
 
 Mechanical Locks & Keys 是基于 Arkzenir 的 Lock & Key 制作的 Vintage Story Fork。它使用钥匙齿形匹配锁芯：任何人只要持有齿形吻合的完工钥匙，就能操作对应的锁。不再按玩家、群组身份或权限判断钥匙。
 
-本 Fork 的模组 ID 为 `vsmechanicallocks`，模组版本为 `1.0.1`，面向 Vintage Story `1.22.x` 系列；当前使用 `1.22.7` 游戏程序集构建并通过自动测试。由于更换了模组 ID、资产域名和存档命名空间，旧 `vslockandkey` 世界及物品代码不会迁移，请使用新世界。
+本 Fork 的模组 ID 为 `vsmechanicallocks`，模组版本为 `1.0.2`，面向 Vintage Story `1.22.x` 系列；当前使用 `1.22.7` 游戏程序集构建并通过自动测试。由于更换了模组 ID、资产域名和存档命名空间，旧 `vslockandkey` 世界及物品代码不会迁移，请使用新世界。
 
 ## 制作与使用
 
 1. 浇筑或锻造实心钥匙坯。
-2. 主手持钥匙、副手持锉刀，右键打开界面。分别选择外层或内层，再选择该层八个齿位之一并按住锉削。每次一秒，移除一层金属并消耗一点锉刀耐久；锉掉的部分不能恢复。两层平分原钥匙厚度。
+2. 主手持钥匙、副手持锉刀，右键打开界面。在钥匙预览区域按住左键左右拖拽，可 360° 旋转查看模型。分别选择外层或内层，再选择该层八个齿位之一并按住锉削。选中的齿位在三维预览中显示红色立方体描边，贴合剩余金属并随钥匙旋转。每次一秒，移除一层金属并消耗一点锉刀耐久；锉掉的部分不能恢复。两层平分原钥匙厚度。
 3. 至少锉削一次后点击“完工”。继续锉削会使钥匙重新变为未完工。镶嵌会保留齿形；材质和宝石不参与开锁匹配。
 4. 手持原版挂锁右键可锁定的门或容器安装。新锁未配置且未上锁。
 5. 按住 Ctrl，对准未配置的锁并手持完工钥匙右键来配置锁芯；配置后仍未上锁。
@@ -80,7 +82,7 @@ dotnet run --project tests/Mechanical.Tests.csproj -- "C:/Games/VintageStory"
 dotnet build VSMechanicalLocks.csproj -c Release
 ```
 
-发布包为 `Releases/vsmechanicallocks_1.0.1.zip`。自动测试结果和游戏内验收清单见 [TESTING.md](TESTING.md)。
+发布包为 `Releases/vsmechanicallocks_1.0.2.zip`。自动测试结果和游戏内验收清单见 [TESTING.md](TESTING.md)。
 
 ## 致谢与许可
 

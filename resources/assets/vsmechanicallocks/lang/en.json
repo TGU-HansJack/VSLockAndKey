@@ -294,7 +294,7 @@
   "vsmechanicallocks:key-layer-b": "Inner layer",
   "vsmechanicallocks:keyfile-title": "File key blade",
   "vsmechanicallocks:filing-blank": "Key blank, not yet filed",
-  "vsmechanicallocks:filing-instructions": "Click a tooth in the blade diagram to select it, then hold File to remove metal. Each stroke takes one second. Cuts cannot be undone. Finish before using.",
+  "vsmechanicallocks:filing-instructions": "Drag the key left/right to rotate. Click a tooth, then hold File (1s per cut). Cuts cannot be undone. Finish before using.",
   "vsmechanicallocks:hold-file": "Hold to file",
   "vsmechanicallocks:finish": "Finish",
   "vsmechanicallocks:cut-required": "Make at least one cut before finishing.",

@@ -76,6 +76,32 @@ public class ItemKey : Item, IContainedMeshSource
             return shape;
         }
     }
+    internal MeshData ToothOutline(ItemStack stack, int index)
+    {
+        if ((uint)index >= 16) throw new ArgumentOutOfRangeException(nameof(index));
+        var root = Blade(stack).Elements.Single(e => e.Name == "Teeth");
+        var tooth = root.Children![index];
+        var mesh = new MeshData(8, 24);
+        mesh.SetMode(EnumDrawMode.Lines);
+        // A very small outward offset keeps the lines off the metal surface.
+        const float padding = .00005f;
+        for (int corner = 0; corner < 8; corner++)
+        {
+            float Coordinate(int axis) => (corner & (1 << axis)) == 0 ? -padding
+                : (float)(tooth.To![axis] - tooth.From![axis]) / 16 + padding;
+            mesh.AddVertex(Coordinate(0), Coordinate(1), Coordinate(2), 0, 0, -1);
+            // Each of the twelve cuboid edges appears once; no face diagonals.
+            for (int axis = 0; axis < 3; axis++)
+                if ((corner & (1 << axis)) == 0)
+                {
+                    mesh.AddIndex(corner);
+                    mesh.AddIndex(corner | (1 << axis));
+                }
+        }
+        mesh.MatrixTransform(tooth.GetLocalTransformMatrix(0));
+        mesh.MatrixTransform(root.GetLocalTransformMatrix(0));
+        return mesh;
+    }
     public override void OnBeforeRender(ICoreClientAPI capi, ItemStack stack, EnumItemRenderTarget target, ref ItemRenderInfo info)
     {
         base.OnBeforeRender(capi, stack, target, ref info);

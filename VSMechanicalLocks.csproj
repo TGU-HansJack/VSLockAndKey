@@ -2,7 +2,7 @@
   <!--
     Mechanical Locks & Keys - Vintage Story 1.22.x build.
       dotnet build VSMechanicalLocks.csproj
-      dotnet build VSMechanicalLocks.csproj -c Release   (also writes Releases/vsmechanicallocks_1.0.1.zip)
+      dotnet build VSMechanicalLocks.csproj -c Release   (also writes Releases/vsmechanicallocks_1.0.2.zip)
   -->
 
   <PropertyGroup>

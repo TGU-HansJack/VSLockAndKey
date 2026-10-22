@@ -41,7 +41,7 @@ class Program
     [MethodImpl(MethodImplOptions.NoInlining)]
     static void Run()
     {
-        Profiles(); Geometry(); Persistence(); Filing(); LockLifecycle(); Patches(); Tooltips();
+        Profiles(); Geometry(); PreviewDepth(); Persistence(); Filing(); LockLifecycle(); Patches(); Tooltips();
     }
     static void Tooltips()
     {
@@ -138,7 +138,92 @@ class Program
             var teeth = blade.Elements.Single(e=>e.Name=="Teeth").Children!;
             Check(teeth.Length==16, name+" has eight tooth sections on each blade layer");
             Check(teeth.Select((e,i)=>Math.Abs(e.From![1]-(1-(.125+.175*profile.Heights[i])))<.00001 && Math.Abs((e.To![0]-e.From[0])-.25f)<.00001).All(x=>x), name+" mesh geometry follows each layer's cuts without changing total thickness");
+            MeshData Outline(int index) => (MeshData)typeof(ItemKey).GetMethod("ToothOutline", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(item, new object[] { stack, index })!;
+            var root = blade.Elements.Single(e => e.Name == "Teeth");
+            for (int index = 0; index < 16; index++)
+            {
+                var outline = Outline(index);
+                Check(outline.VerticesCount == 8 && outline.IndicesCount == 24 && outline.mode == EnumDrawMode.Lines,
+                    name + " selected tooth has eight corners and twelve line segments");
+                var edges = Enumerable.Range(0, 12).Select(i => (A: outline.Indices[i * 2], B: outline.Indices[i * 2 + 1])).ToArray();
+                Check(edges.Select(e => (Math.Min(e.A, e.B), Math.Max(e.A, e.B))).Distinct().Count() == 12 &&
+                    edges.All(e => Enumerable.Range(0, 3).Count(axis => Math.Abs(outline.xyz[e.A * 3 + axis] - outline.xyz[e.B * 3 + axis]) > .000001) == 1),
+                    name + " outline contains each cuboid edge once and has no crossed diagonals");
+                Check(Enumerable.Range(0, 8).All(corner => Enumerable.Range(0, 3).All(axis =>
+                {
+                    bool upper = (corner & (1 << axis)) != 0;
+                    double expected = (root.From![axis] + (upper ? teeth[index].To![axis] : teeth[index].From![axis])) / 16;
+                    expected += upper ? .00005 : -.00005;
+                    return Math.Abs(outline.xyz[corner * 3 + axis] - expected) < .000001;
+                })), name + " outline follows the actual selected layer, tooth and filed metal bounds");
+            }
+            var before = Outline(5);
+            var neighbor = Outline(4);
+            profile.File(5); profile.Write(stack, true);
+            var after = Outline(5);
+            Check(after.xyz[1] > before.xyz[1] && after.xyz[7] == before.xyz[7], name + " outline shrinks with the filed tooth while retaining its top");
+            Check(Outline(4).xyz.SequenceEqual(neighbor.xyz), name + " filing a tooth leaves another tooth outline unchanged");
             Check(template.Elements.Single(e=>e.Name=="Teeth").Children!.All(e=>e.From![1]==0), "rendering never mutates shared asset");
+        }
+    }
+    static void PreviewDepth()
+    {
+        var apply = typeof(ItemKey).Assembly.GetType("VSMechanicalLocks.Gui.GuiDialogKeyFile")!
+            .GetMethod("ApplyPreviewTransform", BindingFlags.Static | BindingFlags.NonPublic)!;
+        float[] Point(float[] matrix, float[] point) => Enumerable.Range(0, 3)
+            .Select(axis => matrix[axis] * point[0] + matrix[4 + axis] * point[1] + matrix[8 + axis] * point[2] + matrix[12 + axis]).ToArray();
+        foreach (string name in new[] { "key", "key-jeweled" })
+        {
+            var shape = JsonConvert.DeserializeObject<Shape>(File.ReadAllText($"resources/assets/vsmechanicallocks/shapes/item/{name}.json"))!;
+            var vertices = new List<float[]>();
+            void Collect(ShapeElement element, float[] parent)
+            {
+                var matrix = Mat4f.Mul(Mat4f.Create(), parent, element.GetLocalTransformMatrix(0));
+                for (int corner = 0; corner < 8; corner++)
+                    vertices.Add(Point(matrix, Enumerable.Range(0, 3).Select(axis => (corner & (1 << axis)) == 0 ? 0 : (float)(element.To![axis] - element.From![axis]) / 16).ToArray()));
+                foreach (var child in element.Children ?? Array.Empty<ShapeElement>()) Collect(child, matrix);
+            }
+            foreach (var element in shape.Elements) Collect(element, Mat4f.Create());
+            var json = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText($"resources/assets/vsmechanicallocks/itemtypes/{name}.json"))["guiTransform"]!;
+            float[] Vector(string key) => new[] { "x", "y", "z" }.Select(axis => (float)json[key]![axis]!).ToArray();
+            var origin = Vector("origin"); var translation = Vector("translation"); var rotation = Vector("rotation");
+            foreach (double scale in new[] { .5, .75, 1, 1.5, 2, 3, 4, 8 })
+            {
+                double x = 400.5 * scale, y = 250.5 * scale;
+                float size = (float)(85 * scale);
+                float modelScale = size * (float)json["scale"]!;
+                var item = new Matrixf().Translate((int)x - 3, (int)y - 1, 100)
+                    .Translate(origin[0] + translation[0] * scale, origin[1] + translation[1] * scale, origin[2] * size + translation[2] * scale)
+                    .Scale(modelScale, modelScale, modelScale).RotateXDeg(rotation[0]).RotateYDeg(rotation[1]).RotateZDeg(rotation[2])
+                    .Translate(-origin[0], -origin[1], -origin[2]);
+                bool inDepthRange = true, sameScreenPosition = true, sameDepthOrder = true;
+                for (int yaw = 0; yaw < 360; yaw += 5)
+                {
+                    var compressed = Mat4f.Create();
+                    var render = Stub.Make<IRenderAPI>((method, args) =>
+                    {
+                        float F(int index) => Convert.ToSingle(args[index]);
+                        if (method.Name == "GlTranslate") Mat4f.Translate(compressed, F(0), F(1), F(2));
+                        if (method.Name == "GlScale") Mat4f.Scale(compressed, F(0), F(1), F(2));
+                        if (method.Name == "GlRotate") Mat4f.RotateY(compressed, F(0) * GameMath.DEG2RAD);
+                        return null;
+                    });
+                    apply.Invoke(null, new object[] { render, x, y, (float)yaw, scale });
+                    var uncompressed = new Matrixf().Translate(x, y, 100).RotateYDeg(yaw).Translate(-x, -y, -100).Values;
+                    foreach (var vertex in vertices)
+                    {
+                        var position = Point(item.Values, vertex);
+                        var actual = Point(compressed, position);
+                        var previous = Point(uncompressed, position);
+                        inDepthRange &= actual[2] > 60 && actual[2] < 140;
+                        sameScreenPosition &= Math.Abs(actual[0] - previous[0]) < .002 && Math.Abs(actual[1] - previous[1]) < .002;
+                        sameDepthOrder &= Math.Abs(actual[2] - (100 + (previous[2] - 100) * .1 / scale)) < .0001;
+                    }
+                }
+                Check(inDepthRange, name + " preview stays ahead of background and behind next dialog at every angle, scale " + scale);
+                Check(sameScreenPosition, name + " depth compression preserves screen position and apparent size, scale " + scale);
+                Check(sameDepthOrder, name + " positive depth compression preserves model and outline occlusion, scale " + scale);
+            }
         }
     }
     static void Persistence()

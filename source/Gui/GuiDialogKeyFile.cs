@@ -2,6 +2,7 @@ using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
+using Vintagestory.API.MathTools;
 namespace VSMechanicalLocks.Gui;
 
 public sealed class GuiDialogKeyFile : GuiDialogGeneric
@@ -11,11 +12,17 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     int selected;
     int selectedLayer;
     readonly DummySlot preview = new();
+    readonly ElementBounds previewBounds = ElementBounds.Fixed(0, 90, 400, 110);
     readonly ElementBounds chartBounds = ElementBounds.Fixed(95, 225, 305, 88);
     readonly ElementBounds fileBounds = ElementBounds.Fixed(0, 355, 240, 30);
     GuiElementCustomDraw chart = null!;
     bool holding;
     bool waiting;
+    bool rotating;
+    int lastMouseX;
+    float previewYaw;
+    MeshRef? toothOutline;
+    bool outlineDirty = true;
     long started;
     public override string ToggleKeyCombinationCode => null!;
     public GuiDialogKeyFile(ICoreClientAPI api, FilingStatePacket packet) : base(Lang.Get("vsmechanicallocks:keyfile-title"), api)
@@ -29,9 +36,19 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
             .AddShadedDialogBG(bg, true).AddDialogTitleBar(Lang.Get("vsmechanicallocks:keyfile-title"), () => TryClose())
             .BeginChildElements(bg)
             .AddStaticText(Lang.Get("vsmechanicallocks:filing-instructions"), CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 30, 400, 55));
-        composer.AddInteractiveElement(new GuiElementCustomRender(api, ElementBounds.Fixed(0, 90, 400, 110), (dt, b) =>
+        composer.AddInteractiveElement(new GuiElementCustomRender(api, previewBounds, (dt, b) =>
         {
-            api.Render.RenderItemstackToGui(preview, b.renderX + b.OuterWidth / 2, b.renderY + b.OuterHeight / 2, 100, (float)GuiElement.scaled(85), -1, true, false, false);
+            double x = b.renderX + b.OuterWidth / 2;
+            double y = b.renderY + b.OuterHeight / 2;
+            // Keep the rotated model inside this dialog's depth range.
+            api.Render.GlPushMatrix();
+            try
+            {
+                ApplyPreviewTransform(api.Render, x, y, previewYaw, GuiElement.scaled(1));
+                api.Render.RenderItemstackToGui(preview, x, y, 100, (float)GuiElement.scaled(85), -1, true, false, false);
+                RenderToothOutline();
+            }
+            finally { api.Render.GlPopMatrix(); }
         }), "preview");
         chart = new GuiElementCustomDraw(api, chartBounds, DrawBlade, true);
         composer.AddInteractiveElement(chart, "blade");
@@ -43,6 +60,39 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
             .EndChildElements();
         SingleComposer = composer.Compose();
         Update(packet);
+    }
+    internal static void ApplyPreviewTransform(IRenderAPI render, double x, double y, float yaw, double guiScale)
+    {
+        render.GlTranslate(x, y, 100d);
+        // GUI projection is orthographic: compressing only Z after rotation leaves
+        // screen size/position unchanged and retains the model's own depth ordering.
+        // Normalize GUI scale so neither the background (Z=50) nor the next dialog
+        // (ZSize=150) intersects the model, including at large interface scales.
+        render.GlScale(1, 1, (float)(.1 / guiScale));
+        render.GlRotate(yaw, 0, 1, 0);
+        render.GlTranslate(-x, -y, -100d);
+    }
+    void RenderToothOutline()
+    {
+        if (preview.Itemstack?.Collectible is not ItemKey key) return;
+        if (outlineDirty)
+        {
+            toothOutline?.Dispose();
+            toothOutline = null;
+            toothOutline = capi.Render.UploadMesh(key.ToothOutline(preview.Itemstack, selectedLayer * 8 + selected));
+            outlineDirty = false;
+        }
+        // Render immediately after the item, retaining its exact GUI model-view and
+        // projection matrices (including drag rotation and the item's own transform).
+        var shader = capi.Render.CurrentActiveShader;
+        shader.Uniform("noTexture", 1f);
+        shader.Uniform("rgbaIn", new Vec4f(.95f, .12f, .10f, 1));
+        try { capi.Render.RenderMesh(toothOutline!); }
+        finally
+        {
+            shader.Uniform("noTexture", 0f);
+            shader.Uniform("rgbaIn", new Vec4f(1, 1, 1, 1));
+        }
     }
     void DrawBlade(Context ctx, ImageSurface surface, ElementBounds b)
     {
@@ -73,6 +123,7 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     {
         revision = packet.Revision;
         preview.Itemstack = VSMechanicalLocksModSystem.UnpackStack(packet.Stack, capi.World);
+        outlineDirty = true;
         waiting = false; chart.Redraw();
         if (holding) BeginStroke();
     }
@@ -90,6 +141,14 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     }
     public override void OnMouseDown(MouseEvent args)
     {
+        if (args.Button == EnumMouseButton.Left && previewBounds.PointInside(args.X, args.Y))
+        {
+            Cancel();
+            rotating = true;
+            lastMouseX = args.X;
+            args.Handled = true;
+            return;
+        }
         if (args.Button == EnumMouseButton.Left && chartBounds.PointInside(args.X, args.Y) && !waiting)
         {
             double x = args.X - chartBounds.absX;
@@ -99,6 +158,7 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
                 Cancel();
                 selectedLayer = y < 42 ? 0 : 1;
                 selected = Math.Clamp((int)(x / (chartBounds.InnerWidth / 8)), 0, 7);
+                outlineDirty = true;
                 chart.Redraw();
                 args.Handled = true;
                 return;
@@ -108,9 +168,31 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
         { holding = true; BeginStroke(); args.Handled = true; return; }
         base.OnMouseDown(args);
     }
-    public override void OnMouseUp(MouseEvent args) { Cancel(); base.OnMouseUp(args); }
+    public override void OnMouseMove(MouseEvent args)
+    {
+        if (rotating)
+        {
+            float delta = (float)((args.X - lastMouseX) / GuiElement.scaled(1) * .75);
+            previewYaw = (previewYaw + delta) % 360;
+            lastMouseX = args.X;
+            args.Handled = true;
+            return;
+        }
+        base.OnMouseMove(args);
+    }
+    public override void OnMouseUp(MouseEvent args)
+    {
+        if (rotating && args.Button == EnumMouseButton.Left)
+        {
+            rotating = false;
+            args.Handled = true;
+            return;
+        }
+        Cancel(); base.OnMouseUp(args);
+    }
     public override void OnRenderGUI(float dt)
     {
+        if (rotating && !capi.Input.MouseButton.Left) rotating = false;
         if (holding && !fileBounds.PointInside(capi.Input.MouseX, capi.Input.MouseY)) Cancel();
         if (holding && !waiting && capi.World.ElapsedMilliseconds - started >= 1050)
         { Send("cut"); waiting = true; }
@@ -120,6 +202,16 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     }
     public override void OnGuiClosed()
     {
+        rotating = false;
+        toothOutline?.Dispose();
+        toothOutline = null;
+        outlineDirty = true;
         Cancel(); Send("close"); base.OnGuiClosed();
+    }
+    public override void Dispose()
+    {
+        toothOutline?.Dispose();
+        toothOutline = null;
+        base.Dispose();
     }
 }

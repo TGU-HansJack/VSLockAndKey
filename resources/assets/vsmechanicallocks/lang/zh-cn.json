@@ -294,7 +294,7 @@
   "vsmechanicallocks:key-layer-b": "内层",
   "vsmechanicallocks:keyfile-title": "锉削钥匙",
   "vsmechanicallocks:filing-blank": "钥匙坯，尚未锉削",
-  "vsmechanicallocks:filing-instructions": "点击齿形图选择齿位，再按住锉削移除金属；每次需一秒。已锉除的部分无法恢复，使用前需完工。",
+  "vsmechanicallocks:filing-instructions": "左键左右拖拽钥匙可旋转查看。点击齿形选择齿位，按住锉削，每次一秒。切削不可恢复，使用前需完工。",
   "vsmechanicallocks:hold-file": "按住锉削",
   "vsmechanicallocks:finish": "完工",
   "vsmechanicallocks:cut-required": "至少锉削一次才能完工。",
