@@ -9,9 +9,9 @@
   <PropertyGroup>
     <ModName>VSLockAndKey</ModName>
     <ModType>code</ModType>
-    <ModVersion>1.0.0</ModVersion>
+    <ModVersion>2.0.0</ModVersion>
     <ModId>vslockandkey</ModId>
-    <Description>Locked blocks require posessing a key. Even for the owner.</Description>
+    <Description>Physical keys, hand-filed blades and persistent mechanical padlocks.</Description>
     <Side>universal</Side>
   </PropertyGroup>
 
@@ -37,4 +37,7 @@
   <Import Project="Properties/localSettings.props"
           Condition="Exists('Properties/localSettings.props')" />
 
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>
+  </PropertyGroup>
 </Project>

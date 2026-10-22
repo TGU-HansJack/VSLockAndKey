@@ -1,118 +1,101 @@
-using System.Collections.Generic;
-using System.Linq;
+using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
-using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Config;
-
 namespace VSLockAndKey.Gui;
 
-/// <summary>
-/// Filing dialog: dropdown of the player's own name plus every group they belong to,
-/// and a Confirm button. The server (BindKeyPacket handler in VSLockAndKeyModSystem)
-/// re-validates group-filing rules before actually binding the key - this dialog
-/// only builds the selection UI.
-/// </summary>
-public class GuiDialogKeyFile : GuiDialogGeneric
+public sealed class GuiDialogKeyFile : GuiDialogGeneric
 {
-    readonly string[] values;
-    readonly string[] names;
-    string? selectedValue;
-
-    GuiDialogKeyFile(ICoreClientAPI capi, string[] values, string[] names) : base(Lang.Get("vslockandkey:keyfile-title"), capi)
-    {
-        this.values = values;
-        this.names = names;
-        selectedValue = values.Length > 0 ? values[0] : null;
-
-        // Widths/heights are the original layout's numbers x1.3 (a deliberate size
-        // increase). Vertical placement, by contrast, is derived rather than
-        // guessed: AddShadedDialogBG(withTitleBar: true) only reserves title-bar
-        // space in the drawn background texture, not in bgBounds' own coordinate
-        // frame, so child elements still start at bgBounds' y=0 unless explicitly
-        // pushed down - hence starting the label at GuiStyle.TitleBarHeight (the
-        // actual reserved title bar height) instead of an eyeballed pixel offset,
-        // then chaining every element below the previous one with GuiStyle's own
-        // standard element gap (HalfPadding) rather than more guessed numbers.
-        ElementBounds label = ElementBounds.Fixed(0, GuiStyle.TitleBarHeight, 390, 33);
-        ElementBounds dropdown = label.BelowCopy(0, GuiStyle.HalfPadding, 0, 0).WithFixedSize(390, 39);
-        ElementBounds confirmButton = dropdown.BelowCopy(0, GuiStyle.HalfPadding * 2, 0, 0).WithFixedSize(156, 39);
-        ElementBounds bgBounds = ElementBounds.Fill.WithFixedPadding(GuiStyle.ElementToDialogPadding);
-        bgBounds.BothSizing = ElementSizing.FitToChildren;
-        ElementBounds dialogBounds = ElementStdBounds.AutosizedMainDialog
-            .WithAlignment(EnumDialogArea.CenterMiddle);
-
-        SingleComposer = capi.Gui
-            .CreateCompo("vslockandkey-keyfile", dialogBounds)
-            .AddShadedDialogBG(bgBounds, true, 5.0, 0.75f)
-            .AddDialogTitleBar(Lang.Get("vslockandkey:keyfile-title"), OnTitleBarClose)
-            .BeginChildElements(bgBounds)
-                .AddStaticText(Lang.Get("vslockandkey:keyfile-label"), CairoFont.WhiteDetailText(), label)
-                .AddDropDown(values, names, 0, OnSelectionChanged, dropdown, "targetDropdown")
-                .AddSmallButton(Lang.Get("vslockandkey:common-confirm"), OnConfirmClicked, confirmButton)
-            .EndChildElements()
-            .Compose();
-    }
-
-    public static void OpenFor(EntityAgent byEntity, ItemSlot keySlot)
-    {
-        if (byEntity.World.Api is not ICoreClientAPI capi) return;
-        IPlayer? player = (byEntity as EntityPlayer)?.Player;
-        if (player == null) return;
-
-        List<string> values = new() { "player:" + player.PlayerUID };
-        List<string> names = new() { player.PlayerName };
-
-        bool requireOwnerOrOp = VSLockAndKeyModSystem.Config?.GroupFilingRequiresOwnerOrOp ?? true;
-
-        foreach (PlayerGroupMembership membership in player.Groups)
-        {
-            if (requireOwnerOrOp && membership.Level != EnumPlayerGroupMemberShip.Owner && membership.Level != EnumPlayerGroupMemberShip.Op)
-            {
-                continue;
-            }
-
-            values.Add("group:" + membership.GroupUid);
-            names.Add(membership.GroupName);
-        }
-
-        new GuiDialogKeyFile(capi, values.ToArray(), names.ToArray()).TryOpen();
-    }
-
-    // Vanilla's own abstract declaration is non-nullable, but vanilla's own
-    // GuiDialogConfirm returns null here too - no toggle hotkey for this dialog.
+    public string Token { get; }
+    int revision;
+    int selected;
+    readonly DummySlot preview = new();
+    readonly ElementBounds chartBounds = ElementBounds.Fixed(0, 195, 400, 100);
+    readonly ElementBounds fileBounds = ElementBounds.Fixed(0, 350, 240, 45);
+    GuiElementCustomDraw chart = null!;
+    bool holding;
+    bool waiting;
+    long started;
     public override string ToggleKeyCombinationCode => null!;
-
-    void OnTitleBarClose() => TryClose();
-
-    void OnSelectionChanged(string code, bool selected)
+    public GuiDialogKeyFile(ICoreClientAPI api, FilingStatePacket packet) : base(Lang.Get("vslockandkey:keyfile-title"), api)
     {
-        selectedValue = code;
-    }
-
-    bool OnConfirmClicked()
-    {
-        if (selectedValue == null)
+        Token = packet.Token;
+        revision = packet.Revision;
+        preview.Itemstack = VSLockAndKeyModSystem.UnpackStack(packet.Stack, api.World);
+        var bg = ElementBounds.Fill.WithFixedPadding(GuiStyle.ElementToDialogPadding);
+        bg.BothSizing = ElementSizing.FitToChildren;
+        var composer = api.Gui.CreateCompo("vlk-filing", ElementStdBounds.AutosizedMainDialog.WithAlignment(EnumDialogArea.CenterMiddle))
+            .AddShadedDialogBG(bg, true).AddDialogTitleBar(Lang.Get("vslockandkey:keyfile-title"), () => TryClose())
+            .BeginChildElements(bg)
+            .AddStaticText(Lang.Get("vslockandkey:filing-instructions"), CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 30, 400, 55));
+        composer.AddInteractiveElement(new GuiElementCustomRender(api, ElementBounds.Fixed(0, 90, 400, 95), (dt, b) =>
         {
-            TryClose();
-            return true;
+            api.Render.RenderItemstackToGui(preview, b.renderX + b.OuterWidth / 2, b.renderY + b.OuterHeight / 2, 100, (float)GuiElement.scaled(85), -1, true, false, false);
+        }), "preview");
+        chart = new GuiElementCustomDraw(api, chartBounds, DrawBlade, true);
+        composer.AddInteractiveElement(chart, "blade");
+        for (int i = 0; i < 8; i++)
+        {
+            int tooth = i;
+            composer.AddSmallButton((i + 1).ToString(), () => { Cancel(); selected = tooth; chart.Redraw(); return true; }, ElementBounds.Fixed(i * 50, 300, 44, 30), key: "tooth" + i);
         }
-
-        string[] parts = selectedValue.Split(':');
-        bool isGroup = parts[0] == "group";
-        int index = System.Array.IndexOf(values, selectedValue);
-
-        BindKeyPacket packet = new()
+        composer.AddSmallButton(Lang.Get("vslockandkey:hold-file"), () => true, fileBounds)
+            .AddSmallButton(Lang.Get("vslockandkey:finish"), () => { if (waiting) return true; Cancel(); Send("finish"); return true; }, ElementBounds.Fixed(260, 350, 140, 45))
+            .AddDynamicText("", CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 410, 400, 45), "progress")
+            .EndChildElements();
+        SingleComposer = composer.Compose();
+        Update(packet);
+    }
+    void DrawBlade(Context ctx, ImageSurface surface, ElementBounds b)
+    {
+        double scale = GuiElement.scaled(1);
+        ctx.Scale(scale, scale);
+        ctx.SetSourceRGBA(.75, .70, .53, 1); ctx.Rectangle(0, 5, 400, 12); ctx.Fill();
+        var profile = KeyProfile.Read(preview.Itemstack!);
+        if (!profile.Valid) return;
+        for (int i = 0; i < 8; i++)
         {
-            IsGroup = isGroup,
-            PlayerUid = isGroup ? null : parts[1],
-            GroupId = isGroup ? int.Parse(parts[1]) : 0,
-            DisplayName = index >= 0 ? names[index] : ""
-        };
-
-        capi.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(packet);
-
-        TryClose();
-        return true;
+            ctx.SetSourceRGBA(i == selected ? .95 : .64, i == selected ? .80 : .60, .35, 1);
+            ctx.Rectangle(i * 50, 17, 46, 8 + profile.Heights[i] * 12); ctx.Fill();
+        }
+    }
+    public void Update(FilingStatePacket packet)
+    {
+        revision = packet.Revision;
+        preview.Itemstack = VSLockAndKeyModSystem.UnpackStack(packet.Stack, capi.World);
+        waiting = false; chart.Redraw();
+        if (holding) BeginStroke();
+    }
+    void Send(string action) => capi.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(new FilingPacket { Action = action, Token = Token, Revision = revision, Tooth = selected });
+    void BeginStroke()
+    {
+        var profile = KeyProfile.Read(preview.Itemstack!);
+        if (!profile.Valid || profile.Heights[selected] == 0 || capi.World.Player.Entity.LeftHandItemSlot.Itemstack?.Collectible is not ItemKeyFile) { holding = false; return; }
+        started = capi.World.ElapsedMilliseconds; Send("start");
+    }
+    void Cancel()
+    {
+        if (holding && !waiting) Send("cancel");
+        holding = false;
+    }
+    public override void OnMouseDown(MouseEvent args)
+    {
+        if (args.Button == EnumMouseButton.Left && fileBounds.PointInside(args.X, args.Y) && !waiting)
+        { holding = true; BeginStroke(); args.Handled = true; return; }
+        base.OnMouseDown(args);
+    }
+    public override void OnMouseUp(MouseEvent args) { Cancel(); base.OnMouseUp(args); }
+    public override void OnRenderGUI(float dt)
+    {
+        if (holding && !fileBounds.PointInside(capi.Input.MouseX, capi.Input.MouseY)) Cancel();
+        if (holding && !waiting && capi.World.ElapsedMilliseconds - started >= 1050)
+        { Send("cut"); waiting = true; }
+        string state = KeyProfile.IsFinished(preview.Itemstack!) ? "key-finished" : KeyProfile.Read(preview.Itemstack!).Cut ? "key-in-progress" : "key-blank";
+        SingleComposer.GetDynamicText("progress").SetNewText(Lang.Get("vslockandkey:" + state) + (holding ? "  " + Math.Min(100, (capi.World.ElapsedMilliseconds - started) / 10) + "%" : ""));
+        base.OnRenderGUI(dt);
+    }
+    public override void OnGuiClosed()
+    {
+        Cancel(); Send("close"); base.OnGuiClosed();
     }
 }

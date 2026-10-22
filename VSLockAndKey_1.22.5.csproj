@@ -12,6 +12,8 @@
 
   <!-- Written into the generated modinfo.json -->
   <ItemGroup>
+    <Dependencies Include="game" Version="$(VSVersion)" />
+    <Dependencies Include="survival" Version="$(VSVersion)" />
   </ItemGroup>
 
   <!--

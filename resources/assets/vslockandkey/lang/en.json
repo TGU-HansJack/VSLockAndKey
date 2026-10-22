@@ -1,6 +1,5 @@
 {
   "game:tabname-vslockandkey": "Lock & Key",
-
   "item-key-tinbronze": "Key (Tin Bronze)",
   "item-key-bismuthbronze": "Key (Bismuth Bronze)",
   "item-key-blackbronze": "Key (Black Bronze)",
@@ -20,7 +19,6 @@
   "item-key-platinum": "Key (Platinum)",
   "item-key-titanium": "Key (Titanium)",
   "item-key-molybdochalkos": "Key (Molybdochalkos)",
-
   "item-key-jeweled-tinbronze-amethyst": "Key (Tin Bronze) (Amethyst)",
   "item-key-jeweled-tinbronze-cinnabar": "Key (Tin Bronze) (Cinnabar)",
   "item-key-jeweled-tinbronze-diamond": "Key (Tin Bronze) (Diamond)",
@@ -249,14 +247,12 @@
   "item-key-jeweled-molybdochalkos-ruby": "Key (Molybdochalkos) (Ruby)",
   "item-key-jeweled-molybdochalkos-turquoise": "Key (Molybdochalkos) (Turquoise)",
   "item-key-jeweled-molybdochalkos-olivine": "Key (Molybdochalkos) (Olivine)",
-
   "item-keyfile-tinbronze": "Key File (Tin Bronze)",
   "item-keyfile-bismuthbronze": "Key File (Bismuth Bronze)",
   "item-keyfile-blackbronze": "Key File (Black Bronze)",
   "item-keyfile-iron": "Key File (Iron)",
   "item-keyfile-meteoriciron": "Key File (Meteoric Iron)",
   "item-keyfile-steel": "Key File (Steel)",
-
   "item-keyring-rope": "Keyring (Rope)",
   "item-keyring-tinbronze": "Keyring (Tin Bronze)",
   "item-keyring-bismuthbronze": "Keyring (Bismuth Bronze)",
@@ -264,7 +260,6 @@
   "item-keyring-iron": "Keyring (Iron)",
   "item-keyring-meteoriciron": "Keyring (Meteoric Iron)",
   "item-keyring-steel": "Keyring (Steel)",
-
   "block-keymold-rawblue-normal-north": "Key Mold (unfired)",
   "block-keymold-rawblue-normal-east": "Key Mold (unfired)",
   "block-keymold-rawblue-normal-south": "Key Mold (unfired)",
@@ -289,18 +284,31 @@
   "block-keymold-burned-bulk-east": "Key Mold (x4)",
   "block-keymold-burned-bulk-south": "Key Mold (x4)",
   "block-keymold-burned-bulk-west": "Key Mold (x4)",
-
-  "vslockandkey:key-boundto": "Bound to: {0}",
-  "vslockandkey:key-unbound": "Not yet filed to a lock",
-  "vslockandkey:key-durability": "Uses remaining against unauthorised locks: {0}/{1}",
-
-  "vslockandkey:keyfile-title": "File Key",
-  "vslockandkey:keyfile-label": "Bind this key to:",
-  "vslockandkey:common-confirm": "Confirm",
-
-  "vslockandkey:keyring-disabled": "This keyring has no storage capacity.",
-
-  "ingameerror-vslockandkey-locked": "This is locked, and you don't have the key.",
-
-  "blockhelp-vslockandkey-keyfile": "Hold a key in your main hand and a key file in your offhand to bind the key"
+  "vslockandkey:key-blank": "Solid key blank — file the blade before use.",
+  "vslockandkey:key-in-progress": "Unfinished blade",
+  "vslockandkey:key-finished": "Finished mechanical key",
+  "vslockandkey:key-invalid": "Damaged key profile",
+  "vslockandkey:key-help": "Main hand: key; offhand: key file. Right-click air to file. Sneak + right-click a lock to turn it.",
+  "vslockandkey:keyfile-title": "File key blade",
+  "vslockandkey:filing-instructions": "Select a blade section, then hold File to remove metal. Each stroke takes one second. Cuts cannot be undone. Finish before using.",
+  "vslockandkey:hold-file": "Hold to file",
+  "vslockandkey:finish": "Finish",
+  "vslockandkey:cut-required": "Make at least one cut before finishing.",
+  "vslockandkey:state-changed": "The lock changed. Try again.",
+  "vslockandkey:already-installed": "A padlock is already installed.",
+  "vslockandkey:installed": "Padlock installed, unlocked. Configure it with a finished key.",
+  "vslockandkey:finished-key-required": "Use an individual finished key to configure this lock.",
+  "vslockandkey:configured": "Cylinder fitted to this blade. The lock remains unlocked.",
+  "vslockandkey:wrong-key": "The blade does not fit this lock.",
+  "vslockandkey:close-first": "Close the door and all container viewers before locking.",
+  "vslockandkey:locked": "Locked",
+  "vslockandkey:unlocked": "Unlocked",
+  "vslockandkey:detach-locked": "Unlock the padlock before removing it.",
+  "vslockandkey:detached": "Padlock removed; cylinder preserved.",
+  "vslockandkey:status-unconfigured": "Padlock: cylinder not fitted; unlocked",
+  "vslockandkey:status-locked": "Padlock: locked",
+  "vslockandkey:status-unlocked": "Padlock: unlocked",
+  "vslockandkey:padlock-new": "Unfitted cylinder. Install, then sneak + right-click with a finished key.",
+  "vslockandkey:padlock-configured": "Fitted cylinder. Its blade shape is preserved when moved.",
+  "vslockandkey:keyring-disabled": "This keyring has no storage capacity."
 }

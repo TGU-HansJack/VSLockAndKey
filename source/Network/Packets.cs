@@ -1,48 +1,42 @@
 using ProtoBuf;
-
 namespace VSLockAndKey;
-
-[ProtoContract]
-public class BindKeyPacket
+[ProtoContract] public class FilingPacket
 {
-    [ProtoMember(1)]
-    public bool IsGroup;
-
-    [ProtoMember(2)]
-    public string? PlayerUid;
-
-    [ProtoMember(3)]
-    public int GroupId;
-
-    [ProtoMember(4)]
-    public string DisplayName = "";
+    // open, start, cut, finish, cancel, close. A session is tied to both physical held stacks.
+    [ProtoMember(1)] public string Action = "";
+    [ProtoMember(2)] public string Token = "";
+    [ProtoMember(3)] public int Tooth;
+    [ProtoMember(4)] public int Revision;
 }
-
-/// <summary>
-/// Client -> server: "open whatever keyring I'm currently holding". No slot/item
-/// reference is sent - the server re-derives it from the sender's own active
-/// hotbar slot, the same pattern OnBindKeyPacket uses, so nothing here needs
-/// trusting.
-/// </summary>
-[ProtoContract]
-public class OpenKeyringPacket
+[ProtoContract] public class FilingStatePacket
 {
+    [ProtoMember(1)] public string Token = "";
+    [ProtoMember(2)] public int Revision;
+    [ProtoMember(3)] public byte[] Stack = Array.Empty<byte>();
 }
-
-/// <summary>
-/// Server -> client: the keyring's current contents, serialized the same way
-/// vanilla's own BlockEntityContainerOpen does it (a raw TreeAttribute byte blob),
-/// so the client can build a matching InventoryGeneric before opening the dialog.
-/// </summary>
-[ProtoContract]
-public class KeyringContentsPacket
+[ProtoContract] public class LockActionPacket
 {
-    [ProtoMember(1)]
-    public string DialogTitle = "";
-
-    [ProtoMember(2)]
-    public int SlotCount;
-
-    [ProtoMember(3)]
-    public byte[] TreeBytes = System.Array.Empty<byte>();
+    [ProtoMember(1)] public int X;
+    [ProtoMember(2)] public int Y;
+    [ProtoMember(3)] public int Z;
+    [ProtoMember(4)] public int Dimension;
+    [ProtoMember(5)] public long Revision;
+    [ProtoMember(6)] public bool Query;
+}
+[ProtoContract] public class LockStatePacket
+{
+    [ProtoMember(1)] public int X;
+    [ProtoMember(2)] public int Y;
+    [ProtoMember(3)] public int Z;
+    [ProtoMember(4)] public int Dimension;
+    [ProtoMember(5)] public string Json = "null";
+}
+[ProtoContract] public class NoticePacket { [ProtoMember(1)] public string Code = ""; }
+[ProtoContract] public class OpenKeyringPacket { }
+[ProtoContract] public class KeyringContentsPacket
+{
+    [ProtoMember(1)] public string DialogTitle = "";
+    [ProtoMember(2)] public int SlotCount;
+    [ProtoMember(3)] public byte[] TreeBytes = Array.Empty<byte>();
+    [ProtoMember(4)] public string InventoryId = "";
 }

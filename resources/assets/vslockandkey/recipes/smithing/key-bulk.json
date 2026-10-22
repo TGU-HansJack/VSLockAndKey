@@ -1,25 +1,41 @@
 {
-  "ingredient": { "type": "item", "code": "game:ingot-*", "name": "metal", "allowedVariants": ["tinbronze", "bismuthbronze", "blackbronze", "iron", "meteoriciron", "steel"] },
-  "name": "Key (x4)",
+  "ingredient": {
+    "type": "item",
+    "code": "game:ingot-*",
+    "name": "metal",
+    "allowedVariants": [
+      "tinbronze",
+      "bismuthbronze",
+      "blackbronze",
+      "iron",
+      "meteoriciron",
+      "steel"
+    ]
+  },
+  "name": "Key blank (x4)",
   "pattern": [
     [
       "____###_____###_",
       "#####_#_#####_#_",
-      "#_#_###_#_#_###_",
+      "#######_#######_",
       "________________",
       "____###_____###_",
       "#####_#_#####_#_",
-      "#_#_###_#_#_###_"
+      "#######_#######_"
     ],
     [
       "____###_____###_",
       "#####_#_#####_#_",
-      "#_#_###_#_#_###_",
+      "#######_#######_",
       "________________",
       "____###_____###_",
       "#####_#_#####_#_",
-      "#_#_###_#_#_###_"
+      "#######_#######_"
     ]
   ],
-  "output": { "type": "item", "code": "vslockandkey:key-{metal}", "quantity": 4 }
+  "output": {
+    "type": "item",
+    "code": "vslockandkey:key-{metal}",
+    "quantity": 4
+  }
 }

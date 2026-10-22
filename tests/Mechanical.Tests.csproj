@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <VSVersion Condition="'$(VSVersion)' == ''">1.22.5</VSVersion>
+    <TargetFramework Condition="'$(VSVersion)' == '1.22.5'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(VSVersion)' == '1.21.5'">net8.0</TargetFramework>
+    <DefineConstants Condition="'$(VSVersion)' == '1.21.5'">$(DefineConstants);VS121</DefineConstants>
+    <GameDirectory Condition="'$(VSVersion)' == '1.22.5'">$(GameDirectory_1_22_5)</GameDirectory>
+    <GameDirectory Condition="'$(VSVersion)' == '1.21.5'">$(GameDirectory_1_21_5)</GameDirectory>
+    <OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OutputPath>bin/$(VSVersion)</OutputPath>
+    <AssemblyName>Mechanical.Tests</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GameDirectory Condition="'$(VSVersion)' == '1.22.5'">$(GameDirectory_1_22_5)</GameDirectory>
+    <GameDirectory Condition="'$(VSVersion)' == '1.21.5'">$(GameDirectory_1_21_5)</GameDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Reference Include="VSLockAndKey_$(VSVersion)" HintPath="../bin/Debug/$(VSVersion)/Mods/vslockandkey/VSLockAndKey_$(VSVersion).dll" />
+    <Reference Include="VintagestoryAPI" HintPath="$(GameDirectory)/VintagestoryAPI.dll" />
+    <Reference Include="VintagestoryLib" HintPath="$(GameDirectory)/VintagestoryLib.dll" />
+    <Reference Include="VSSurvivalMod" HintPath="$(GameDirectory)/Mods/VSSurvivalMod.dll" />
+    <Reference Include="VSEssentials" HintPath="$(GameDirectory)/Mods/VSEssentials.dll" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameDirectory)/Lib/Newtonsoft.Json.dll" />
+    <Reference Include="0Harmony" HintPath="$(GameDirectory)/Lib/0Harmony.dll" />
+  </ItemGroup>
+</Project>

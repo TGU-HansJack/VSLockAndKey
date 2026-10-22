@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 using System.Text;
 using HarmonyLib;
@@ -9,268 +6,206 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
 using VSLockAndKey.Gui;
-
 [assembly: ModInfo("VSLockAndKey", "vslockandkey")]
-
 namespace VSLockAndKey;
 
 public class VSLockAndKeyModSystem : ModSystem
 {
     public const string NetworkChannelId = "vslockandkey";
-    const string HarmonyId = "vslockandkey.islockedforinteract";
-    const string ConfigFileName = "vslockandkey.json";
-
-    // Namespaced so this can't collide with another mod's own key in the same
-    // world.Config tree - see PLANNING.md for why this, not a custom packet, is
-    // the right way to get a server-authoritative config value to clients.
-    const string WorldConfigKey = "vslockandkey:config";
-
-    public static ICoreAPI? Api { get; private set; }
-    public static ModConfig? Config { get; private set; }
-
-    Harmony? harmony;
+    const string HarmonyId = "vslockandkey.mechanical";
+    public ICoreAPI Api { get; private set; } = null!;
+    public MechanicalLocks Locks { get; private set; } = null!;
+    public ModConfig Settings { get; private set; } = new();
     ICoreServerAPI? sapi;
     ICoreClientAPI? capi;
-
-    /// <summary>
-    /// Runs before Start() on both sides. Server: load from disk (writing defaults
-    /// if missing) and publish into world.Config, which the engine syncs to every
-    /// client as part of the normal join handshake. Client: read that same synced
-    /// value instead of maintaining (and trusting) its own local copy - this is
-    /// the same pattern examples/Thievery's ConfigManager uses, not something
-    /// invented for this mod. Server writes here are guaranteed to complete before
-    /// any client, including the local one in singleplayer, reads world.Config,
-    /// since a world's server side always finishes initializing before a client
-    /// begins actual gameplay against it - true for dedicated MP by construction
-    /// (nothing can connect before the server is up) and equally true for the
-    /// embedded singleplayer server.
-    /// </summary>
+    Harmony? harmony;
+    GuiDialogKeyFile? filingDialog;
+    readonly Dictionary<string, FilingSession> sessions = new();
+    readonly Dictionary<string, KeyringInventory> keyrings = new();
+    GuiDialogKeyring? keyringDialog;
+    sealed class FilingSession
+    {
+        public string Token = Guid.NewGuid().ToString("N");
+        public ItemSlot Slot = null!;
+        public ItemStack Key = null!;
+        public ItemStack? File;
+        public int Revision;
+        public int Tooth = -1;
+        public long Started;
+    }
+    public static VSLockAndKeyModSystem Get(IWorldAccessor world) => world.Api.ModLoader.GetModSystem<VSLockAndKeyModSystem>();
     public override void StartPre(ICoreAPI api)
     {
-        base.StartPre(api);
-
         if (api.Side == EnumAppSide.Server)
         {
-            ModConfig config = api.LoadModConfig<ModConfig>(ConfigFileName);
-            if (config == null)
-            {
-                config = new ModConfig();
-                api.StoreModConfig(config, ConfigFileName);
-                api.Logger.Notification($"[VSLockAndKey] No config found, wrote defaults to {ConfigFileName}.");
-            }
-
-            // A hand-edited config that explicitly empties KeyringSlotsByMaterial (as
-            // opposed to just omitting it, which deserialization already leaves at its
-            // field-initializer default) would otherwise leave every keyring falling
-            // back to DefaultKeyringSlots regardless of material - almost certainly not
-            // the intent, so treat "present but empty" the same as "absent".
-            if (config.KeyringSlotsByMaterial == null || config.KeyringSlotsByMaterial.Count == 0)
-            {
-                config.KeyringSlotsByMaterial = ModConfig.DefaultKeyringSlotsByMaterial();
-                api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s KeyringSlotsByMaterial was empty - using built-in defaults.");
-            }
-
-            // A slot count becomes the array length ItemKeyring.GetContents allocates -
-            // a negative value would throw there. Rather than treating <= 0 as
-            // malformed, it's honored as an intentional "disable this keyring type":
-            // clamped to exactly 0 (never left negative), which GetContents/
-            // GuiDialogKeyring both handle explicitly (an empty dialog instead of a
-            // slot grid) rather than crashing on it.
-            if (config.DefaultKeyringSlots < 0)
-            {
-                api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s DefaultKeyringSlots ({config.DefaultKeyringSlots}) is negative - clamping to 0 (disabled).");
-                config.DefaultKeyringSlots = 0;
-            }
-
-            foreach (string material in new List<string>(config.KeyringSlotsByMaterial.Keys))
-            {
-                if (config.KeyringSlotsByMaterial[material] < 0)
-                {
-                    api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s KeyringSlotsByMaterial[\"{material}\"] ({config.KeyringSlotsByMaterial[material]}) is negative - clamping to 0 (disabled).");
-                    config.KeyringSlotsByMaterial[material] = 0;
-                }
-            }
-
-            // ExemptPlayerUids/ExemptGroupNames are read via .Contains()/.Count in
-            // KeyAccessUtil.IsOwnerExempt on every locked-block interaction (the
-            // Harmony patch calls it unconditionally) - a config that explicitly sets
-            // either to JSON null (same "present but null" case as
-            // KeyringSlotsByMaterial above, just previously unguarded here) would
-            // otherwise NullReferenceException on the very next lock check.
-            if (config.ExemptPlayerUids == null)
-            {
-                api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s ExemptPlayerUids was null - using an empty list.");
-                config.ExemptPlayerUids = new List<string>();
-            }
-
-            if (config.ExemptGroupNames == null)
-            {
-                api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s ExemptGroupNames was null - using an empty list.");
-                config.ExemptGroupNames = new List<string>();
-            }
-
-            // AdminBypassPrivilege is passed straight to IPlayer.HasPrivilege, whose
-            // null-handling isn't visible from the API surface (closed-source
-            // implementation) - safer to not find out the hard way.
-            if (string.IsNullOrEmpty(config.AdminBypassPrivilege))
-            {
-                api.Logger.Warning($"[VSLockAndKey] {ConfigFileName}'s AdminBypassPrivilege was empty - using \"commandplayer\".");
-                config.AdminBypassPrivilege = "commandplayer";
-            }
-
-            Config = config;
-
-            // world.Config's underlying StringAttribute does not escape correctly when
-            // the engine converts it to a JToken (e.g. when the main menu's "Modify
-            // World" screen re-parses the whole world config as one JSON document) -
-            // storing our own raw JSON directly under this key corrupts that outer
-            // parse. Base64-encoding sidesteps it entirely; same fix examples/Thievery's
-            // ConfigManager uses for the identical problem.
-            string serialized = JsonConvert.SerializeObject(config);
-            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(serialized));
-            api.World.Config.SetString(WorldConfigKey, encoded);
+            Settings = api.LoadModConfig<ModConfig>("vslockandkey.json") ?? new();
+            Settings.KeyringSlotsByMaterial ??= ModConfig.DefaultKeyringSlotsByMaterial();
+            Settings.DefaultKeyringSlots = Math.Clamp(Settings.DefaultKeyringSlots, 0, 64);
+            foreach (var key in Settings.KeyringSlotsByMaterial.Keys.ToArray()) Settings.KeyringSlotsByMaterial[key] = Math.Clamp(Settings.KeyringSlotsByMaterial[key], 0, 64);
+            api.StoreModConfig(Settings, "vslockandkey.json");
+            api.World.Config.SetString("vslockandkey:config", Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(Settings))));
         }
         else
         {
-            string encoded = api.World.Config.GetString(WorldConfigKey);
-            if (string.IsNullOrEmpty(encoded))
-            {
-                Config = new ModConfig();
-            }
-            else
-            {
-                try
-                {
-                    string json = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
-                    Config = JsonConvert.DeserializeObject<ModConfig>(json) ?? new ModConfig();
-                }
-                catch (Exception ex)
-                {
-                    // The server always writes a fresh, valid value before any client can
-                    // read it, so this should never actually trigger - but an uncaught
-                    // exception here would crash the client mid-join, so treat a decode
-                    // failure the same as "nothing synced yet" instead of taking the
-                    // client down over what only ever gates cosmetic tooltip text.
-                    api.Logger.Warning($"[VSLockAndKey] Failed to decode synced config, using defaults: {ex.Message}");
-                    Config = new ModConfig();
-                }
-            }
+            try { Settings = JsonConvert.DeserializeObject<ModConfig>(Encoding.UTF8.GetString(Convert.FromBase64String(api.World.Config.GetString("vslockandkey:config", "")))) ?? new(); }
+            catch { Settings = new(); }
         }
     }
-
     public override void Start(ICoreAPI api)
     {
-        base.Start(api);
         Api = api;
-
+        Locks = new(api);
         api.RegisterItemClass("ItemKey", typeof(ItemKey));
         api.RegisterItemClass("ItemKeyFile", typeof(ItemKeyFile));
         api.RegisterItemClass("ItemKeyring", typeof(ItemKeyring));
-
         api.Network.RegisterChannel(NetworkChannelId)
-            .RegisterMessageType<BindKeyPacket>()
-            .RegisterMessageType<OpenKeyringPacket>()
-            .RegisterMessageType<KeyringContentsPacket>();
-
-        // Patched on both sides, not just the server: BlockBehaviorLockable also runs
-        // IsLockedForInteract client-side to decide whether to predict the interaction.
-        // With a server-only patch, a dedicated-server client fell back to vanilla's
-        // check, which lets group members through, so it opened gates/doors locally
-        // (walk-through collision) while the server refused and kept them closed.
-        // In singleplayer both sides share one process and one patched method, so
-        // only the first side to get here applies the patch.
+            .RegisterMessageType<FilingPacket>().RegisterMessageType<FilingStatePacket>()
+            .RegisterMessageType<LockActionPacket>().RegisterMessageType<LockStatePacket>().RegisterMessageType<NoticePacket>()
+            .RegisterMessageType<OpenKeyringPacket>().RegisterMessageType<KeyringContentsPacket>();
+        api.Event.OnTestBlockAccess += Locks.TestAccess;
         if (!Harmony.HasAnyPatches(HarmonyId))
         {
             harmony = new Harmony(HarmonyId);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
-
-        api.Logger.Debug("[VSLockAndKey] Mod loaded.");
     }
-
+    public override void AssetsFinalize(ICoreAPI api)
+    {
+        foreach (var item in api.World.Items)
+            if (item is ItemPadlock) item.MaxStackSize = 1;
+        foreach (var block in api.World.Blocks)
+        {
+            if (block.HasBehavior<BlockBehaviorLockable>() && !block.HasBehavior<BlockBehaviorMechanicalLock>())
+                block.BlockBehaviors = new BlockBehavior[] { new BlockBehaviorMechanicalLock(block) }.Concat(block.BlockBehaviors).ToArray();
+        }
+    }
     public override void StartClientSide(ICoreClientAPI api)
     {
-        base.StartClientSide(api);
         capi = api;
-
-        api.Network.GetChannel(NetworkChannelId).SetMessageHandler<KeyringContentsPacket>(OnKeyringContentsPacket);
+        api.Network.GetChannel(NetworkChannelId)
+            .SetMessageHandler<KeyringContentsPacket>(OnKeyringContentsPacket)
+            .SetMessageHandler<FilingStatePacket>(p =>
+            {
+                if (p.Token.Length == 0) { filingDialog?.TryClose(); return; }
+                if (filingDialog?.IsOpened() != true || filingDialog.Token != p.Token)
+                {
+                    filingDialog?.TryClose();
+                    filingDialog?.Dispose();
+                    filingDialog = new GuiDialogKeyFile(api, p);
+                    filingDialog.TryOpen();
+                }
+                else filingDialog.Update(p);
+            })
+            .SetMessageHandler<LockStatePacket>(Locks.Receive)
+            .SetMessageHandler<NoticePacket>(p => api.TriggerIngameError(this, p.Code, Vintagestory.API.Config.Lang.Get("vslockandkey:" + p.Code)));
+        api.Event.RegisterGameTickListener(dt =>
+        {
+            var pos = api.World.Player.CurrentBlockSelection?.Position;
+            if (pos != null) Locks.Request(pos, true);
+        }, 1000);
     }
-
     public override void StartServerSide(ICoreServerAPI api)
     {
-        base.StartServerSide(api);
         sapi = api;
-
         api.Network.GetChannel(NetworkChannelId)
-            .SetMessageHandler<BindKeyPacket>(OnBindKeyPacket)
+            .SetMessageHandler<FilingPacket>(OnFiling)
+            .SetMessageHandler<LockActionPacket>(Locks.Handle)
             .SetMessageHandler<OpenKeyringPacket>(OnOpenKeyringPacket);
+        api.Event.RegisterGameTickListener(dt =>
+        {
+            foreach (var uid in keyrings.Keys.ToArray())
+            {
+                var inv = keyrings[uid];
+                if (api.World.PlayerByUid(uid) == null || !inv.HeldValid)
+                {
+                    inv.TakeLocked = inv.PutLocked = true;
+                    inv.Owner.InventoryManager.CloseInventory(inv);
+                    keyrings.Remove(uid);
+                }
+            }
+            foreach (var uid in sessions.Keys.ToArray())
+            {
+                var player = api.World.PlayerByUid(uid) as IServerPlayer;
+                if (player == null || !ValidSession(player, sessions[uid]))
+                {
+                    sessions.Remove(uid);
+                    if (player != null) api.Network.GetChannel(NetworkChannelId).SendPacket(new FilingStatePacket(), player);
+                }
+            }
+        }, 100);
     }
-
+    bool ValidSession(IServerPlayer player, FilingSession s) => player.Entity.Alive
+        && player.WorldData.CurrentGameMode != EnumGameMode.Spectator
+        && ReferenceEquals(player.InventoryManager.ActiveHotbarSlot, s.Slot)
+        && ReferenceEquals(s.Slot.Itemstack, s.Key)
+        && ReferenceEquals(player.Entity.LeftHandItemSlot.Itemstack, s.File);
+    public static byte[] PackStack(ItemStack stack)
+    {
+        var tree = new TreeAttribute(); tree.SetItemstack("stack", stack);
+        using var ms = new MemoryStream(); using var w = new BinaryWriter(ms);
+        tree.ToBytes(w); return ms.ToArray();
+    }
+    public static ItemStack UnpackStack(byte[] bytes, IWorldAccessor world)
+    {
+        var tree = new TreeAttribute();
+        using var ms = new MemoryStream(bytes); using var r = new BinaryReader(ms); tree.FromBytes(r);
+        var stack = tree.GetItemstack("stack"); stack.ResolveBlockOrItem(world); return stack;
+    }
+    void Reply(IServerPlayer player, FilingSession s) => sapi!.Network.GetChannel(NetworkChannelId).SendPacket(new FilingStatePacket { Token = s.Token, Revision = s.Revision, Stack = PackStack(s.Key) }, player);
+    void OnFiling(IServerPlayer player, FilingPacket packet)
+    {
+        if (packet.Action == "open")
+        {
+            var slot = player.InventoryManager.ActiveHotbarSlot;
+            if (!player.Entity.Alive || player.WorldData.CurrentGameMode == EnumGameMode.Spectator || slot.Itemstack?.Collectible is not ItemKey || player.Entity.LeftHandItemSlot.Itemstack?.Collectible is not ItemKeyFile || !KeyProfile.Read(slot.Itemstack).Valid) return;
+            var fresh = new FilingSession { Slot = slot, Key = slot.Itemstack, File = player.Entity.LeftHandItemSlot.Itemstack };
+            sessions[player.PlayerUID] = fresh;
+            Reply(player, fresh); return;
+        }
+        if (!sessions.TryGetValue(player.PlayerUID, out var s) || s.Token != packet.Token) return;
+        if (!ValidSession(player, s))
+        {
+            sessions.Remove(player.PlayerUID);
+            sapi!.Network.GetChannel(NetworkChannelId).SendPacket(new FilingStatePacket(), player);
+            return;
+        }
+        if (packet.Action == "close") { sessions.Remove(player.PlayerUID); return; }
+        if (packet.Revision != s.Revision) { Reply(player, s); return; }
+        var profile = KeyProfile.Read(s.Key);
+        switch (packet.Action)
+        {
+            case "start":
+                if (s.File?.Collectible is not ItemKeyFile || packet.Tooth < 0 || packet.Tooth >= 8 || profile.Heights[packet.Tooth] == 0) return;
+                s.Tooth = packet.Tooth; s.Started = Api.World.ElapsedMilliseconds; return;
+            case "cancel": s.Tooth = -1; return;
+            case "cut":
+                if (s.File?.Collectible is not ItemKeyFile || s.Tooth != packet.Tooth) { Reply(player, s); return; }
+                if (Api.World.ElapsedMilliseconds - s.Started < 1000) { Reply(player, s); return; }
+                s.Tooth = -1;
+                if (!profile.File(packet.Tooth)) return;
+                profile.Write(s.Key, false); s.Slot.MarkDirty();
+                s.File.Collectible.DamageItem(Api.World, player.Entity, player.Entity.LeftHandItemSlot, 1);
+                s.File = player.Entity.LeftHandItemSlot.Itemstack;
+                break;
+            case "finish":
+                if (!profile.Cut) { Locks.Notice(player, "cut-required"); return; }
+                profile.Write(s.Key, true); s.Slot.MarkDirty(); s.Tooth = -1; break;
+            default: return;
+        }
+        s.Revision++; Reply(player, s);
+    }
     public override void Dispose()
     {
-        // Only the instance that applied the patch removes it (harmony stays null on
-        // the side that found it already applied).
+        filingDialog?.TryClose(); filingDialog?.Dispose(); keyringDialog?.TryClose(); keyringDialog?.Dispose(); sessions.Clear(); keyrings.Clear();
+        if (Api != null) Api.Event.OnTestBlockAccess -= Locks.TestAccess;
         harmony?.UnpatchAll(HarmonyId);
         base.Dispose();
     }
-
-    void OnBindKeyPacket(IServerPlayer fromPlayer, BindKeyPacket packet)
-    {
-        ItemSlot keySlot = fromPlayer.InventoryManager.ActiveHotbarSlot;
-        ItemSlot fileSlot = fromPlayer.Entity.LeftHandItemSlot;
-
-        if (keySlot?.Itemstack?.Collectible is not ItemKey) return;
-        if (fileSlot?.Itemstack?.Collectible is not ItemKeyFile) return;
-
-        if (packet.IsGroup)
-        {
-            if (Config!.GroupFilingRequiresOwnerOrOp)
-            {
-                PlayerGroupMembership membership = fromPlayer.GetGroup(packet.GroupId);
-                if (membership == null || (membership.Level != EnumPlayerGroupMemberShip.Owner && membership.Level != EnumPlayerGroupMemberShip.Op))
-                {
-                    return;
-                }
-            }
-            else if (fromPlayer.GetGroup(packet.GroupId) == null)
-            {
-                return;
-            }
-
-            keySlot.Itemstack.Attributes.SetInt(KeyAccessUtil.BoundGroupIdAttr, packet.GroupId);
-            keySlot.Itemstack.Attributes.RemoveAttribute(KeyAccessUtil.BoundPlayerUidAttr);
-        }
-        else
-        {
-            if (packet.PlayerUid != fromPlayer.PlayerUID) return;
-
-            keySlot.Itemstack.Attributes.SetString(KeyAccessUtil.BoundPlayerUidAttr, packet.PlayerUid);
-            keySlot.Itemstack.Attributes.RemoveAttribute(KeyAccessUtil.BoundGroupIdAttr);
-        }
-
-        keySlot.Itemstack.Attributes.SetString(KeyAccessUtil.BoundNameAttr, packet.DisplayName);
-        keySlot.Itemstack.Attributes.SetInt(KeyAccessUtil.DurabilityAttr, Config!.KeyDurability);
-        keySlot.MarkDirty();
-
-        // Files aren't consumed by filing, but they do wear down like any other tool
-        // (durabilitybytype already declares their max durability - this is the only
-        // place that ever spends it). DamageItem breaks the file automatically once
-        // it hits zero (with the normal break sound/particles) and calls MarkDirty
-        // itself.
-        fileSlot.Itemstack.Collectible.DamageItem(fromPlayer.Entity.World, fromPlayer.Entity, fileSlot);
-    }
-
-    /// <summary>
-    /// No slot/item is passed in the packet - the keyring being opened is always
-    /// whichever item is currently the sender's active hotbar item, since that's
-    /// the only way ItemKeyring.OnHeldInteractStart fires in the first place. This
-    /// matches OnBindKeyPacket's approach: re-derive from the server's own state
-    /// rather than trust anything the client could have gotten stale or spoofed.
-    /// </summary>
     void OnOpenKeyringPacket(IServerPlayer fromPlayer, OpenKeyringPacket packet)
     {
-        if (sapi == null) return;
+        if (sapi == null || !fromPlayer.Entity.Alive || fromPlayer.WorldData.CurrentGameMode == EnumGameMode.Spectator) return;
 
         ItemSlot keyringSlot = fromPlayer.InventoryManager.ActiveHotbarSlot;
         if (keyringSlot?.Itemstack?.Collectible is not ItemKeyring) return;
@@ -278,8 +213,13 @@ public class VSLockAndKeyModSystem : ModSystem
         ItemStack?[] contents = ItemKeyring.GetContents(keyringSlot.Itemstack, fromPlayer.Entity.World);
         int slotCount = contents.Length;
 
-        InventoryGeneric inv = new(slotCount, "keyring-" + fromPlayer.PlayerUID, sapi,
-            (id, self) => new KeyringGridSlot(self, id, keyringSlot));
+        if (keyrings.Remove(fromPlayer.PlayerUID, out var previous))
+        {
+            previous.TakeLocked = previous.PutLocked = true;
+            fromPlayer.InventoryManager.CloseInventory(previous);
+        }
+        KeyringInventory inv = new(slotCount, "keyring-" + Guid.NewGuid().ToString("N"), sapi, fromPlayer, keyringSlot);
+        keyrings[fromPlayer.PlayerUID] = inv;
 
         for (int i = 0; i < slotCount; i++)
         {
@@ -298,6 +238,7 @@ public class VSLockAndKeyModSystem : ModSystem
 
         sapi.Network.GetChannel(NetworkChannelId).SendPacket(new KeyringContentsPacket
         {
+            InventoryId = inv.InventoryID,
             DialogTitle = keyringSlot.Itemstack.GetName(),
             SlotCount = slotCount,
             TreeBytes = ms.ToArray()
@@ -308,7 +249,8 @@ public class VSLockAndKeyModSystem : ModSystem
     {
         if (capi == null) return;
 
-        InventoryGeneric inv = new(packet.SlotCount, "keyring-" + capi.World.Player.PlayerUID, capi,
+        keyringDialog?.TryClose(); keyringDialog?.Dispose();
+        InventoryGeneric inv = new(packet.SlotCount, packet.InventoryId, capi,
             (id, self) => new KeyringGridSlot(self, id, null));
 
         TreeAttribute tree = new();
@@ -322,7 +264,7 @@ public class VSLockAndKeyModSystem : ModSystem
 
         capi.World.Player.InventoryManager.OpenInventory(inv);
 
-        GuiDialogKeyring dlg = new(packet.DialogTitle, inv, capi);
-        dlg.TryOpen();
+        keyringDialog = new GuiDialogKeyring(packet.DialogTitle, inv, capi);
+        keyringDialog.TryOpen();
     }
 }

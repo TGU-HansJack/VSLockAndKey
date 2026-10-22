@@ -7,11 +7,14 @@
 
   <PropertyGroup>
     <VSVersion>1.21.5</VSVersion>
+    <DefineConstants>$(DefineConstants);VS121</DefineConstants>
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <!-- Written into the generated modinfo.json -->
   <ItemGroup>
+    <Dependencies Include="game" Version="$(VSVersion)" />
+    <Dependencies Include="survival" Version="$(VSVersion)" />
   </ItemGroup>
 
   <!--

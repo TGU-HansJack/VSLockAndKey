@@ -11,7 +11,7 @@ namespace VSLockAndKey;
 /// own inventory dialog - see GuiDialogKeyring and VSLockAndKeyModSystem's
 /// OpenKeyringPacket/KeyringContentsPacket handlers for the open flow. This class
 /// owns the storage format (an attribute-tree-backed slot array on the itemstack
-/// itself), which both that flow and KeyAccessUtil's inventory scan read directly.
+/// itself). Only a keyring actively held in the main hand can turn a lock.
 /// </summary>
 public class ItemKeyring : Item
 {
@@ -19,6 +19,11 @@ public class ItemKeyring : Item
 
     public override void OnHeldInteractStart(ItemSlot slot, EntityAgent byEntity, BlockSelection blockSel, EntitySelection entitySel, bool firstEvent, ref EnumHandHandling handling)
     {
+        if (blockSel != null && byEntity is EntityPlayer player && VSLockAndKeyModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel))
+        {
+            handling = EnumHandHandling.PreventDefault;
+            return;
+        }
         if (blockSel == null)
         {
             handling = EnumHandHandling.PreventDefault;
@@ -35,9 +40,9 @@ public class ItemKeyring : Item
         base.OnHeldInteractStart(slot, byEntity, blockSel, entitySel, firstEvent, ref handling);
     }
 
-    public static ItemStack?[] GetContents(ItemStack keyringStack, IWorldAccessor? world = null)
+    public static ItemStack?[] GetContents(ItemStack keyringStack, IWorldAccessor world)
     {
-        ModConfig? config = VSLockAndKeyModSystem.Config;
+        ModConfig config = VSLockAndKeyModSystem.Get(world).Settings;
         string material = keyringStack.Collectible.Variant["material"];
         int slots = config != null && config.KeyringSlotsByMaterial.TryGetValue(material, out int configured)
             ? configured
@@ -56,7 +61,7 @@ public class ItemKeyring : Item
         for (int i = 0; i < slots; i++)
         {
             ItemStack? stack = tree.GetItemstack(i.ToString());
-            stack?.ResolveBlockOrItem(world ?? VSLockAndKeyModSystem.Api?.World);
+            stack?.ResolveBlockOrItem(world);
             stacks[i] = stack;
         }
 

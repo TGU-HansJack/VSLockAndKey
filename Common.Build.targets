@@ -28,6 +28,7 @@
     <Reference Include="VSSurvivalMod"   HintPath="$(GameDirectory)/Mods/VSSurvivalMod.dll"  Private="false" />
     <Reference Include="VSEssentials"    HintPath="$(GameDirectory)/Mods/VSEssentials.dll"   Private="false" />
     <Reference Include="Newtonsoft.Json" HintPath="$(GameDirectory)/Lib/Newtonsoft.Json.dll" Private="false" />
+    <Reference Include="cairo-sharp" HintPath="$(GameDirectory)/Lib/cairo-sharp.dll" Private="false" />
     <Reference Include="0Harmony"        HintPath="$(GameDirectory)/Lib/0Harmony.dll"        Private="false" />
     <Reference Include="protobuf-net"    HintPath="$(GameDirectory)/Lib/protobuf-net.dll"    Private="false" />
   </ItemGroup>

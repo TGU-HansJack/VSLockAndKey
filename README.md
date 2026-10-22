@@ -1,157 +1,66 @@
-# LockAndKey
+# Lock & Key 2.0 — 机械锁
 
-Adds a key requirement on top of Vintage Story's existing block reinforcement/locking
-system. Locking a block to yourself or to a group still works exactly like vanilla —
-this mod adds one rule on top: **to interact with a locked block, you must possess a
-matching key somewhere in your inventory**, even if you're the lock's owner or a
-member of the owning group.
+本版本把原版挂锁改为按实体钥匙形状工作的机械锁。任何人持有形状匹配的完工钥匙都能解锁；没有玩家或群组绑定、锁主身份、管理员开锁例外、背包自动找钥匙或钥匙使用损耗。
 
-## Features
+**仅用于新世界。** 不迁移 1.x 的绑定钥匙、原版权限锁或旧锁数据。客户端与服务端必须安装对应游戏版本的同一模组版本。
 
-- **Key gate on locked blocks.** Owning or being in the group of a locked block is no
-  longer enough on its own — you also need a key bound to that specific player or
-  group. No key, no access, even for the owner.
-- **Keys work for anyone who has one.** A key is a physical credential: if a stranger
-  ends up with a matching key (lent, found, stolen), it opens the lock for them too.
-  There's no separate "is this really your lock" check beyond possessing the key.
-- **Optional durability penalty for unauthorised use.** Keys can have limited
-  durability that only drains when used by someone who *isn't* the lock's actual
-  owner/group member — legitimate use never wears a key down.
-- **Key Files, for binding keys to a target.** Hold a key in your main hand and any
-  key file in your offhand to open a binding dialog, where you pick yourself or one
-  of your groups as the key's target — a file's metal has no bearing on which keys
-  it can bind. Files wear down with use instead (real durability, breaks when
-  spent, but isn't consumed outright by a single filing), and wear down fast at the
-  cheap end: a bronze file is only good for a handful of bindings before it breaks,
-  while a steel one lasts for dozens. Filing a lot of keys at once is where a better
-  file actually pays for itself.
-- **Keyrings.** A holdable container that accepts only keys — right-click it (with
-  nothing targeted) to open its own inventory screen and manage its contents. Keys
-  inside a keyring you're carrying anywhere in your inventory work exactly as if
-  they were loose, whether or not the keyring's screen is currently open. Capacity
-  scales with the keyring's material, and is configurable per-server — see below.
-- **Admin bypass and per-lock exemptions**, configurable — see below.
-- **Metal variants.** Key Files and metal Keyrings come in bronze (any of the three
-  real alloys), iron, meteoric iron, or steel, matching lock materials. Keys (and
-  jeweled keys) aren't tier-gated against locks or files, so they're available in
-  the full range of vanilla ingot metals instead — copper, brass, bronze, silver,
-  gold, iron, lead, tin, zinc, bismuth, chromium, electrum, platinum, titanium,
-  molybdochalkos, meteoric iron, and steel — purely a matter of taste. Keys also
-  have an optional gem-studded finish, purely cosmetic.
-- **Ground-storable.** Keys, key files, and keyrings can all be placed on the ground
-  (shift+right-click) rather than only ever sitting in inventory or dropped loose.
+## 制作与操作
 
-## How it works, in practice
+1. 浇筑或锻造实心钥匙坯。普通和批量模具仍可复用。
+2. 主手持钥匙、副手持锉刀，朝空中右键打开锉削界面。选择八个齿位之一并按住“锉削”：每次一秒，移除一层金属并消耗一点锉刀耐久。每齿有六档高度，只能减料；不能撤销、补料或一键复制。
+3. 至少锉削一次后点击“完工”。再锉削会使钥匙重新进入未完工状态。镶嵌宝石会保留齿形及完工状态，材质和宝石不参与开锁匹配。
+4. 手持原版挂锁，右键可上锁的门或容器安装，无需先加固。新锁未配置且未锁定。
+5. 手持一把完工钥匙，潜行并右键新锁，首次配置锁芯；此时仍未上锁。锁芯配置后不能重新配形。
+6. 手持匹配钥匙，潜行并右键切换锁定状态。门及相连门扇必须关闭，容器必须无人查看才能上锁。解锁状态会持续保存；普通右键使用不会自动转动锁，也不会扫描背包。
+7. 主手持钥匙环时，潜行并右键锁具会尝试环内的完工钥匙。配置新锁需要单独手持钥匙。钥匙环朝空中右键管理内容；切换手持物会使存储会话失效。
+8. 锁解开后，主手持铅垂规（plumb and square），潜行并右键拆下锁。锁芯随挂锁保留，重新安装后仍匹配原齿形。已锁定的挂锁不能直接拆卸。
 
-1. **Lock a block as normal.** Vanilla reinforcement/locking is untouched — reinforce
-   and lock to yourself or to a group exactly like you always have.
-2. **Forge or cast a key** of any metal (see Crafting below), then **file it** to
-   the player or group the lock belongs to: hold the key in your main hand, any
-   key file in your offhand, right-click in the air, pick a target from the
-   dropdown, confirm.
-3. **Carry the filed key** (loose in inventory, or inside a keyring you're carrying
-   — right-click the keyring to open it and drop keys in) whenever you want to open
-   that lock. Without it, even the lock's owner is turned away.
-4. If `LimitUnauthorisedUse` is on, a key used by someone other than the lock's
-   actual owner/group member loses one use each time; at zero it breaks (with the
-   normal item-break sound and particles). Used by the rightful owner/group member,
-   it never wears down.
+锁的齿形、锁定状态和位置按区块保存。破坏或替换承载方块会销毁锁，不掉落完整挂锁。方块加固仍按原版规则承受破坏；拆锁不会移除加固。
 
-## Crafting
+原版领地仍管理安装、拆卸及破坏。已安装机械锁的准确目标有局部使用例外：未锁定时任何人可使用；手持匹配钥匙并潜行时可解锁。例外不会授予建造、拆卸或破坏能力，也不覆盖死亡、旁观及其他模组的拒绝。剧情锁、门闩继续存在。
 
-- **Anvil smithing**: heat an ingot, work it on the anvil into a key, a key file, or a
-  metal keyring. Keys accept any vanilla ingot metal; key files and metal keyrings
-  are limited to bronze/iron/meteoric iron/steel. A bulk recipe produces 4 keys from
-  one smithing pass, using a bit under 2 ingots' worth of material rather than a full
-  4x cost.
-- **Casting**: shape clay into a key mold, fire it in a kiln, then pour molten metal
-  from a crucible to cast a key (any metal) — same reusable-mold pattern as vanilla
-  ingot/tool molds (the mold survives the pour and can be reused). A bulk mold
-  variant casts 4 keys per pour.
-- **Gem-studding**: hammer + chisel + a cut gem + an already-forged/cast key of the
-  matching metal produces the gem-studded variant. Purely cosmetic.
-- **Rope keyring**: rope, in a simple grid recipe (the only keyring that isn't
-  smithed).
+## 配置
 
-## Configuration
+`ModConfig/vslockandkey.json` 只保留钥匙环容量。旧权限配置字段会在保存时移除。
 
-Written to `ModConfig/vslockandkey.json` on first run (per installation — the
-default only applies the first time; edit the file directly to change it later).
-
-| Option | Default | Meaning |
-|---|---|---|
-| `AdminBypassKeyRequirement` | `false` | Players with the `commandplayer` privilege skip the *key* requirement — they still need normal vanilla owner/group access to the lock itself. |
-| `AdminBypassPrivilege` | `commandplayer` | Which privilege counts as "admin" for the bypass above. |
-| `ExemptPlayerUids` | *(empty)* | Player UIDs whose own locks never require a key. |
-| `ExemptGroupNames` | *(empty)* | Group names whose locks never require a key. |
-| `LimitUnauthorisedUse` | `true` | If true, keys have finite durability that only drains on unauthorised use (see above). If false, keys never take damage. |
-| `KeyDurability` | `3` | Uses before an unauthorised-use key breaks, when `LimitUnauthorisedUse` is on. |
-| `GroupFilingRequiresOwnerOrOp` | `true` | If true, filing a key to a Group target requires the filer to hold Owner or Op rank in that group. |
-| `ShowKeyBindingInfo` | `true` | If true, key tooltips show their "Bound to: X" / "Not yet filed" line. |
-| `KeyringSlotsByMaterial` | rope=2, bronze (any alloy)=3, iron=4, meteoriciron=5, steel=6 | Keyring capacity per material. Shrinking a value doesn't delete anything already stored past the new limit — it just becomes inaccessible until raised again. Set a material to `0` to disable that keyring type entirely (opens an empty dialog with no storage). |
-| `DefaultKeyringSlots` | `4` | Fallback capacity for any material not listed above. Also settable to `0` to disable unlisted materials by default. |
-
-## Status
-
-Actively in development, under live in-game testing. Gameplay logic, recipes, config,
-and models/textures are all implemented and build cleanly (0 warnings) for both
-supported game versions. All six shapes are real modeled geometry, wired to real
-vanilla metal/clay/gem textures, with hand/GUI-icon/ground orientation confirmed
-correct in-game. Not expected to be compatible with other mods that alter vanilla
-locking if both are installed together.
-
-The keyring's own inventory dialog is a right-click-to-open custom dialog backed by
-vanilla's own `InventoryGeneric`/container-slot networking, not the equip-slot-based
-`IHeldBag` system (which doesn't work for a plain carried item — see `PLANNING.md`).
-Its interactive plumbing (open/close, drag in/out, concurrent sessions) hasn't had a
-full in-game pass yet. Ground-storage placement for keys/files/keyrings is likewise
-implemented but not yet visually confirmed in-game.
-
-See `PLANNING.md` for the full design brief, implementation notes, and known open
-items.
-
-## Building
-
-Requires the .NET SDK and a Vintage Story install. Two game versions are supported
-from one shared `source/` tree — no conditional compilation, both `.csproj` files
-build the same code.
-
-1. Copy `Properties/localSettings.props.template` to `Properties/localSettings.props`
-   and set your game install path(s) — `GameDirectory_1_22_5` and/or
-   `GameDirectory_1_21_5`, whichever you're building for.
-2. Build:
-
-```
-dotnet build VSLockAndKey_1.22.5.csproj                # VS 1.22.5, debug
-dotnet build VSLockAndKey_1.22.5.csproj -c Release     # VS 1.22.5, release + zip
-
-dotnet build VSLockAndKey_1.21.5.csproj                # VS 1.21.5, debug
-dotnet build VSLockAndKey_1.21.5.csproj -c Release     # VS 1.21.5, release + zip
+```json
+{
+  "KeyringSlotsByMaterial": {
+    "rope": 2,
+    "tinbronze": 3,
+    "bismuthbronze": 3,
+    "blackbronze": 3,
+    "iron": 4,
+    "meteoriciron": 5,
+    "steel": 6
+  },
+  "DefaultKeyringSlots": 4
+}
 ```
 
-Debug output lands in `bin/Debug/{version}/Mods/vslockandkey/`. Add the `Mods/` folder
-above it to the game's ModPaths for live asset reloading (JSON/texture/sound edits
-apply without rebuilding; C# changes and item/block registration changes like
-`storageFlags` need a restart or rejoin to take effect).
+容量限制为 0–64；0 禁用该钥匙环存储。降低容量会隐藏超额格子，其数据仍保留，恢复容量后可取出。
 
-Release output lands in `Releases/vslockandkey_<version>_vs{1.22.5,1.21.5}.zip`,
-ready for the mod portal.
+## 构建与验证
 
-## Layout
+复制 `Properties/localSettings.props.template` 为 `Properties/localSettings.props`，填写相应游戏路径。1.21.5 使用 .NET 8，1.22.5 使用 .NET 10。
 
-| Path | Contents |
-|---|---|
-| `source/` | C# source — config, Harmony patch, items, keyring inventory GUI/networking, filing GUI/networking |
-| `resources/assets/vslockandkey/` | Block/item types, recipes, lang, shapes |
-| `Directory.Build.props` | Mod identity — name, id, version, description, side, authors |
-| `Common.Build.targets` | Shared build logic |
-| `VSLockAndKey_1.22.5.csproj` / `VSLockAndKey_1.21.5.csproj` | One per supported game version |
-| `deps/` | Vendored dependency DLLs, per game version |
-| `external/` | Ad-hoc DLLs, auto-referenced |
+```powershell
+dotnet build VSLockAndKey_1.21.5.csproj -c Release
+dotnet build VSLockAndKey_1.22.5.csproj -c Release
+```
 
-`modinfo.json` is generated by the build from `Directory.Build.props`. Do not create
-one by hand.
+发布包输出到 `Releases/vslockandkey_2.0.0_vs{游戏版本}.zip`。两版本共用源码，仅对锻造回调和地面模型接口进行条件编译。
 
-## Licence
+自动验证、实际验证边界及游戏内验收步骤见 [TESTING.md](TESTING.md)。设计及数据格式见 [DESIGN.md](DESIGN.md)。
 
-Add your licence here.
+# English
+
+Version 2 replaces vanilla padlock identity checks with physical blade matching. Anyone holding a matching finished key can unlock it. There are no player/group bindings, owner/admin exceptions, inventory searches, or key use wear. **New worlds only; no migration from 1.x or existing vanilla identity locks.** Install matching builds on both client and server.
+
+Cast or smith a solid blank. Hold the key in your main hand and a file in your offhand, then right-click air. Select one of eight blade sections and hold File: each one-second stroke removes one height step and costs one file durability. Each section has six heights; removed metal cannot be restored. Make at least one cut and choose Finish. Further filing makes the key unfinished again. Jeweling preserves the blade and finish; materials and gems do not affect matching.
+
+Right-click a lockable door/container with a vanilla padlock to install it without reinforcement. Sneak + right-click with an individual finished key fits the cylinder once, leaving the lock unlocked. Repeat with a matching key to toggle its persistent state. A held keyring tries its contents; keys elsewhere in your inventory do nothing. Ordinary interaction never unlocks automatically. Close doors and linked wings, and close all container viewers before locking.
+
+Sneak + right-click an unlocked padlock with a plumb and square to remove it, preserving the cylinder. Removal needs normal claim BuildOrBreak access. Destruction/replacement destroys the lock without an intact padlock drop; reinforcement remains vanilla. Local claim Use exceptions allow anyone to use an unlocked mechanical target, or unlock that exact target with a matching held key. Other mod vetoes, death/spectator restrictions, story locks and door bars remain applicable.
+
+Only keyring capacities are configurable (see JSON above). Build the appropriate project with the matching game assemblies; release ZIPs are generated automatically. See [TESTING.md](TESTING.md) for automated checks and the in-game acceptance checklist.
