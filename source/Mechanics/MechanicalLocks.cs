@@ -8,12 +8,12 @@ using Vintagestory.API.Server;
 using Vintagestory.GameContent;
 using Vintagestory.Server;
 
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 /// <summary>All state changes run in server packet handlers; queries have no side effects.</summary>
 public sealed class MechanicalLocks
 {
-    const string ChunkData = "vslockandkey:mechanical-v1";
+    const string ChunkData = "vsmechanicallocks:mechanical-v1";
     readonly ICoreAPI api;
     long revision = DateTime.UtcNow.Ticks;
     long lastRequest;
@@ -52,7 +52,7 @@ public sealed class MechanicalLocks
         if (state == null) data.Remove(PositionKey(pos)); else data[PositionKey(pos)] = state;
         chunk.SetModdata(ChunkData, Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data)));
         if (api.Side == EnumAppSide.Server) chunk.MarkModified();
-        if (broadcast && api is ICoreServerAPI server) server.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).BroadcastPacket(Packet(pos, state));
+        if (broadcast && api is ICoreServerAPI server) server.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).BroadcastPacket(Packet(pos, state));
     }
     static LockStatePacket Packet(BlockPos pos, InstalledLock? state) => new() { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Json = JsonConvert.SerializeObject(state) };
     public void Receive(LockStatePacket packet) => Store(new BlockPos(packet.X, packet.Y, packet.Z, packet.Dimension), JsonConvert.DeserializeObject<InstalledLock>(packet.Json), false);
@@ -94,9 +94,9 @@ public sealed class MechanicalLocks
             if (lastPosition == key && api.World.ElapsedMilliseconds - lastRequest < 200) return;
             lastPosition = key; lastRequest = api.World.ElapsedMilliseconds;
         }
-        client.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(new LockActionPacket { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Revision = Get(pos)?.Revision ?? 0, Query = query });
+        client.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new LockActionPacket { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Revision = Get(pos)?.Revision ?? 0, Query = query });
     }
-    public void Notice(IServerPlayer player, string code) => ((ICoreServerAPI)api).Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(new NoticePacket { Code = code }, player);
+    public void Notice(IServerPlayer player, string code) => ((ICoreServerAPI)api).Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new NoticePacket { Code = code }, player);
     public bool Intercept(IPlayer player, BlockSelection selection)
     {
         if (selection == null) return false;
@@ -115,7 +115,7 @@ public sealed class MechanicalLocks
         var block = api.World.BlockAccessor.GetBlock(pos);
         if (!block.HasBehavior<BlockBehaviorLockable>()) return;
         var state = Get(pos);
-        var channel = ((ICoreServerAPI)api).Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId);
+        var channel = ((ICoreServerAPI)api).Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId);
         if (packet.Query) { channel.SendPacket(Packet(pos, state), player); return; }
         // Re-derive the selected controller, held stack and action from current server state.
         var selection = player.CurrentBlockSelection;

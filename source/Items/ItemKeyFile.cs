@@ -1,6 +1,6 @@
 using Vintagestory.API.Common;
 
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 /// <summary>
 /// Passive tool item. All of its logic lives in ItemKey.OnHeldInteractStart, which

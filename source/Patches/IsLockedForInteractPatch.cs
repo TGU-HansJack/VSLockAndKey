@@ -3,7 +3,7 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 [HarmonyPatch(typeof(ModSystemBlockReinforcement), nameof(ModSystemBlockReinforcement.IsLockedForInteract))]
 public static class IsLockedForInteractPatch
@@ -11,7 +11,7 @@ public static class IsLockedForInteractPatch
     public static bool Prefix(BlockPos pos, IPlayer forPlayer, ref bool __result)
     {
         if (forPlayer == null) return true;
-        var state = VSLockAndKeyModSystem.Get(forPlayer.Entity.World).Locks.Get(pos);
+        var state = VSMechanicalLocksModSystem.Get(forPlayer.Entity.World).Locks.Get(pos);
         if (state == null) return true;
         __result = state.Locked;
         return false;
@@ -23,7 +23,7 @@ public static class PadlockInteractionPatch
     public static bool Prefix(EntityAgent byEntity, BlockSelection blockSel, ref EnumHandHandling handling)
     {
         if (blockSel == null || byEntity is not EntityPlayer player) return true;
-        VSLockAndKeyModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel);
+        VSMechanicalLocksModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel);
         handling = EnumHandHandling.PreventDefault;
         return false;
     }
@@ -34,7 +34,7 @@ public static class DetachInteractionPatch
     public static bool Prefix(EntityAgent byEntity, BlockSelection blockSel, ref EnumHandHandling handling)
     {
         if (blockSel == null || byEntity is not EntityPlayer player) return true;
-        if (!VSLockAndKeyModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel)) return true;
+        if (!VSMechanicalLocksModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel)) return true;
         handling = EnumHandHandling.PreventDefault;
         return false;
     }
@@ -44,7 +44,7 @@ public static class ReinforcementRemovalPatch
 {
     public static bool Prefix(EntityAgent byEntity, BlockSelection blockSel, ref EnumHandHandling handling)
     {
-        if (blockSel == null || VSLockAndKeyModSystem.Get(byEntity.World).Locks.Get(blockSel.Position) == null) return true;
+        if (blockSel == null || VSMechanicalLocksModSystem.Get(byEntity.World).Locks.Get(blockSel.Position) == null) return true;
         handling = EnumHandHandling.PreventDefault;
         return false;
     }
@@ -54,7 +54,7 @@ public static class DoorTogglePatch
 {
     public static bool Prefix(BEBehaviorDoor __instance, IPlayer byPlayer)
     {
-        var locks = VSLockAndKeyModSystem.Get(__instance.Api.World).Locks;
+        var locks = VSMechanicalLocksModSystem.Get(__instance.Api.World).Locks;
         if (locks.IsLocked(__instance.Pos)) return false;
         foreach (var companion in new[] { __instance.LeftDoor, __instance.RightDoor })
         {
@@ -75,7 +75,7 @@ public static class ContainerPacketPatch
     public static bool Prefix(BlockEntityOpenableContainer __instance, IPlayer player, int packetid)
     {
         if (packetid == 1001) return true;
-        var locks = VSLockAndKeyModSystem.Get(__instance.Api.World).Locks;
+        var locks = VSMechanicalLocksModSystem.Get(__instance.Api.World).Locks;
         if (locks.Get(__instance.Pos) == null) return true;
         return player.Entity.Alive && player.WorldData.CurrentGameMode != EnumGameMode.Spectator
             && locks.InReach(player, __instance.Pos) && !locks.IsLocked(__instance.Pos)
@@ -86,7 +86,7 @@ public static class ContainerPacketPatch
 [HarmonyPatch(typeof(Block), nameof(Block.OnBlockRemoved))]
 public static class RemovedBlockPatch
 {
-    public static void Prefix(IWorldAccessor world, BlockPos pos) => VSLockAndKeyModSystem.Get(world).Locks.Remove(pos);
+    public static void Prefix(IWorldAccessor world, BlockPos pos) => VSMechanicalLocksModSystem.Get(world).Locks.Remove(pos);
 }
 
 [HarmonyPatch(typeof(CollectibleObject), nameof(CollectibleObject.GetHeldItemInfo))]
@@ -95,7 +95,7 @@ public static class PadlockInfoPatch
     public static void Postfix(CollectibleObject __instance, ItemSlot inSlot, System.Text.StringBuilder dsc)
     {
         if (__instance is ItemPadlock && inSlot.Itemstack != null)
-            dsc.AppendLine(Vintagestory.API.Config.Lang.Get("vslockandkey:padlock-" + (MechanicalLocks.ReadCylinder(inSlot.Itemstack) == null ? "new" : "configured")));
+            dsc.AppendLine(Vintagestory.API.Config.Lang.Get("vsmechanicallocks:padlock-" + (MechanicalLocks.ReadCylinder(inSlot.Itemstack) == null ? "new" : "configured")));
     }
 }
 
@@ -107,7 +107,7 @@ public static class MechanicalInventoryAccess
         if (inventory == null) return true;
         if (inventory is KeyringInventory ring) return ring.CanPlayerAccess(player, player.Entity.Pos) && (!requireOpen || ring.HasOpened(player));
         if (inventory.Pos == null || inventory.Api == null) return true;
-        var locks = VSLockAndKeyModSystem.Get(inventory.Api.World).Locks;
+        var locks = VSMechanicalLocksModSystem.Get(inventory.Api.World).Locks;
         var state = locks.Get(inventory.Pos);
         if (state == null) return true;
         return player.Entity.Alive && player.WorldData.CurrentGameMode != EnumGameMode.Spectator

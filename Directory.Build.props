@@ -7,15 +7,16 @@
   -->
 
   <PropertyGroup>
-    <ModName>VSLockAndKey</ModName>
+    <ModName>Mechanical Locks &amp; Keys</ModName>
     <ModType>code</ModType>
-    <ModVersion>2.0.0</ModVersion>
-    <ModId>vslockandkey</ModId>
-    <Description>Physical keys, hand-filed blades and persistent mechanical padlocks.</Description>
+    <ModVersion>1.0.0</ModVersion>
+    <ModId>vsmechanicallocks</ModId>
+    <Description>Shape-matchable keys, hand filing, keyrings and persistent mechanical locks.</Description>
     <Side>universal</Side>
   </PropertyGroup>
 
   <ItemGroup>
+    <ModInfoAuthors Include="HansJack" />
     <ModInfoAuthors Include="Arkzenir" />
   </ItemGroup>
 

@@ -1,7 +1,7 @@
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 /// <summary>Physical blade geometry. No identity or authorization data participates in matching.</summary>
 public sealed class KeyProfile

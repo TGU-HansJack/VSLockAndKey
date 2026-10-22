@@ -1,5 +1,5 @@
 using ProtoBuf;
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 [ProtoContract] public class FilingPacket
 {
     // open, start, cut, finish, cancel, close. A session is tied to both physical held stacks.

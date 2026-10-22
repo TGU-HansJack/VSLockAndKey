@@ -49,6 +49,6 @@
   "name": "Key Mold (x4)",
   "output": {
     "type": "block",
-    "code": "vslockandkey:keymold-raw{type}-bulk-north"
+    "code": "vsmechanicallocks:keymold-raw{type}-bulk-north"
   }
 }

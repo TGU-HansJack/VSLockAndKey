@@ -40,6 +40,6 @@
   ],
   "output": {
     "type": "item",
-    "code": "vslockandkey:key-{metal}"
+    "code": "vsmechanicallocks:key-{metal}"
   }
 }

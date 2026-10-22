@@ -1,4 +1,4 @@
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 public class ModConfig
 {
     public Dictionary<string, int> KeyringSlotsByMaterial = DefaultKeyringSlotsByMaterial();

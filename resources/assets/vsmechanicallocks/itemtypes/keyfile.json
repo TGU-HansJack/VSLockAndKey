@@ -3,7 +3,7 @@
   "class": "ItemKeyFile",
   "maxstacksize": 1,
   "shape": {
-    "base": "vslockandkey:item/keyfile"
+    "base": "vsmechanicallocks:item/keyfile"
   },
   "behaviors": [
     {
@@ -45,7 +45,7 @@
     "general": [
       "*"
     ],
-    "vslockandkey": [
+    "vsmechanicallocks": [
       "*"
     ]
   },

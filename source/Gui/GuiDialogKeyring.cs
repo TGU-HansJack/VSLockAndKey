@@ -3,7 +3,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
 
-namespace VSLockAndKey.Gui;
+namespace VSMechanicalLocks.Gui;
 
 /// <summary>
 /// Composition mirrors vanilla's GuiDialogBlockEntityInventory (AddItemSlotGrid and
@@ -35,11 +35,11 @@ public class GuiDialogKeyring : GuiDialogGeneric
             ElementBounds disabledDialogBounds = ElementStdBounds.AutosizedMainDialog.WithAlignment(EnumDialogArea.CenterMiddle);
 
             SingleComposer = capi.Gui
-                .CreateCompo("vslockandkey-keyring", disabledDialogBounds)
+                .CreateCompo("vsmechanicallocks-keyring", disabledDialogBounds)
                 .AddShadedDialogBG(disabledBgBounds, true)
                 .AddDialogTitleBar(dialogTitle, OnTitleBarClose)
                 .BeginChildElements(disabledBgBounds)
-                    .AddStaticText(Lang.Get("vslockandkey:keyring-disabled"), CairoFont.WhiteDetailText(), disabledLabel)
+                    .AddStaticText(Lang.Get("vsmechanicallocks:keyring-disabled"), CairoFont.WhiteDetailText(), disabledLabel)
                 .EndChildElements()
                 .Compose();
             return;
@@ -63,7 +63,7 @@ public class GuiDialogKeyring : GuiDialogGeneric
             .WithAlignment(EnumDialogArea.CenterMiddle);
 
         SingleComposer = capi.Gui
-            .CreateCompo("vslockandkey-keyring", dialogBounds)
+            .CreateCompo("vsmechanicallocks-keyring", dialogBounds)
             .AddShadedDialogBG(ElementBounds.Fill)
             .AddDialogTitleBar(dialogTitle, OnTitleBarClose)
             .AddInset(insetBounds)

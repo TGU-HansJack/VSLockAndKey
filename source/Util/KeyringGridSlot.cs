@@ -1,5 +1,5 @@
 using Vintagestory.API.Common;
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 /// <summary>Writes each accepted transfer immediately to the original physical keyring.</summary>
 public class KeyringGridSlot : ItemSlotSurvival
 {

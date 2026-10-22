@@ -3,7 +3,7 @@
     Common.Build.targets - shared MSBuild logic for every <ModName>_<vsver>.csproj.
 
     Each .csproj defines, before importing this file:
-      $(VSVersion)       e.g. 1.21 or 1.21.5
+      $(VSVersion)       e.g. 1.22.5
       $(TargetFramework) e.g. net8.0
       $(GameDirectory)   resolved via localSettings.props or environment vars
       <Dependencies>     items with Version metadata, written into modinfo.json
@@ -13,10 +13,9 @@
     <OutputDir>bin/$(Configuration)/$(VSVersion)/Mods</OutputDir>
     <OutputPath>$(OutputDir)/$(ModId)</OutputPath>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>
-    <RootNamespace>VSLockAndKey</RootNamespace>
+    <RootNamespace>VSMechanicalLocks</RootNamespace>
     <!--
-      VSMajorMinor lets deps/ folders named by major.minor (somedep-1.21/) resolve
-      even when building against a patch version (VSVersion=1.21.5).
+      VSMajorMinor lets deps/ folders named by major.minor resolve for this patch build.
     -->
     <VSMajorMinor>$([System.Text.RegularExpressions.Regex]::Match($(VSVersion), '^\d+\.\d+').Value)</VSMajorMinor>
   </PropertyGroup>
@@ -128,13 +127,15 @@
   <Target Name="ZipRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <StageDir>$(ProjectDir)/obj/release-stage/$(VSVersion)/$(ModId)</StageDir>
-      <ReleaseZip>$(ProjectDir)/Releases/$(ModId)_$(ModVersion)_vs$(VSVersion).zip</ReleaseZip>
+      <ReleaseZip>$(ProjectDir)/Releases/$(ModId)_$(ModVersion).zip</ReleaseZip>
     </PropertyGroup>
 
     <ItemGroup>
       <PackAsset  Include="$(AssetsDir)/**/*" Exclude="$(PackageExcludes)" />
       <PackBinary Include="$(OutputPath)/*.dll" />
       <PackRoot   Include="$(OutputPath)/modinfo.json" />
+      <PackRoot   Include="$(ProjectDir)/LICENSE" />
+      <PackRoot   Include="$(ProjectDir)/NOTICE.md" />
       <PackRoot   Include="$(ProjectDir)/resources/modicon.png"
                   Condition="Exists('$(ProjectDir)/resources/modicon.png')" />
     </ItemGroup>

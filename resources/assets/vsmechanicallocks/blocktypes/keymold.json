@@ -31,14 +31,14 @@
     { "code": "side", "loadFromProperties": "abstract/horizontalorientation" }
   ],
   "shapebytype": {
-    "*-normal-north": { "base": "vslockandkey:block/keymold", "rotateY": 0 },
-    "*-normal-east": { "base": "vslockandkey:block/keymold", "rotateY": 270 },
-    "*-normal-south": { "base": "vslockandkey:block/keymold", "rotateY": 180 },
-    "*-normal-west": { "base": "vslockandkey:block/keymold", "rotateY": 90 },
-    "*-bulk-north": { "base": "vslockandkey:block/keymold-bulk", "rotateY": 0 },
-    "*-bulk-east": { "base": "vslockandkey:block/keymold-bulk", "rotateY": 270 },
-    "*-bulk-south": { "base": "vslockandkey:block/keymold-bulk", "rotateY": 180 },
-    "*-bulk-west": { "base": "vslockandkey:block/keymold-bulk", "rotateY": 90 }
+    "*-normal-north": { "base": "vsmechanicallocks:block/keymold", "rotateY": 0 },
+    "*-normal-east": { "base": "vsmechanicallocks:block/keymold", "rotateY": 270 },
+    "*-normal-south": { "base": "vsmechanicallocks:block/keymold", "rotateY": 180 },
+    "*-normal-west": { "base": "vsmechanicallocks:block/keymold", "rotateY": 90 },
+    "*-bulk-north": { "base": "vsmechanicallocks:block/keymold-bulk", "rotateY": 0 },
+    "*-bulk-east": { "base": "vsmechanicallocks:block/keymold-bulk", "rotateY": 270 },
+    "*-bulk-south": { "base": "vsmechanicallocks:block/keymold-bulk", "rotateY": 180 },
+    "*-bulk-west": { "base": "vsmechanicallocks:block/keymold-bulk", "rotateY": 90 }
   },
   "attributes": {
     "reinforcable": true,
@@ -48,12 +48,12 @@
     "keymold-burned-normal-*": {
       "requiredUnits": 100,
       "fillHeight": 1,
-      "drop": { "type": "item", "code": "vslockandkey:key-{metal}" }
+      "drop": { "type": "item", "code": "vsmechanicallocks:key-{metal}" }
     },
     "keymold-burned-bulk-*": {
       "requiredUnits": 400,
       "fillHeight": 1,
-      "drop": { "type": "item", "code": "vslockandkey:key-{metal}", "quantity": 4 }
+      "drop": { "type": "item", "code": "vsmechanicallocks:key-{metal}", "quantity": 4 }
     }
   },
   "entityClassByType": {
@@ -80,7 +80,7 @@
   "blockmaterial": "Ceramic",
   "creativeinventory": {
     "general": ["*-north"],
-    "vslockandkey": ["*-north"]
+    "vsmechanicallocks": ["*-north"]
   },
   "replaceable": 700,
   "resistance": 1.5,

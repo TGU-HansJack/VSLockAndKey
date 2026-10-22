@@ -3,7 +3,7 @@
   "class": "ItemKey",
   "maxstacksize": 1,
   "shape": {
-    "base": "vslockandkey:item/key-jeweled"
+    "base": "vsmechanicallocks:item/key-jeweled"
   },
   "behaviors": [
     {
@@ -102,7 +102,7 @@
     "general": [
       "*"
     ],
-    "vslockandkey": [
+    "vsmechanicallocks": [
       "*"
     ]
   },

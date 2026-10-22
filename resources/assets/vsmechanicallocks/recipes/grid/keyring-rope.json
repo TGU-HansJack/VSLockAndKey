@@ -5,5 +5,5 @@
   "ingredients": {
     "R": { "type": "item", "code": "game:rope" }
   },
-  "output": { "type": "item", "code": "vslockandkey:keyring-rope" }
+  "output": { "type": "item", "code": "vsmechanicallocks:keyring-rope" }
 }

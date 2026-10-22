@@ -8,7 +8,7 @@ using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 using Vintagestory.GameContent;
-using VSLockAndKey;
+using VSMechanicalLocks;
 
 class Program
 {
@@ -53,7 +53,7 @@ class Program
         for (int i = 0; i < 4; i++) Check(profile.File(2), "remove remaining metal");
         Check(!profile.File(2) && profile.Heights[2] == 0, "cannot add metal or file below zero");
         Check(!new KeyProfile { Heights = new[] { 1 } }.Valid && !new KeyProfile { Version = 3 }.Valid && !new KeyProfile { Spec = "other" }.Matches(profile), "reject incompatible profiles");
-        var jeweled = new ItemStack(new ItemKey { ItemId = 2, Code = new AssetLocation("vslockandkey:key-jeweled-gold-ruby") });
+        var jeweled = new ItemStack(new ItemKey { ItemId = 2, Code = new AssetLocation("vsmechanicallocks:key-jeweled-gold-ruby") });
         typeof(CollectibleObject).GetField("api", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(jeweled.Collectible, Stub.Make<ICoreAPI>((m,a) => null));
         var inputs = new[] { new DummySlot(blank) }; var output = new DummySlot(jeweled);
         jeweled.Collectible.OnCreatedByCrafting(inputs, output, new GridRecipe { AverageDurability = false });
@@ -66,14 +66,14 @@ class Program
         padlock.Attributes.SetString(MechanicalLocks.CylinderAttribute, "broken json");
         Check(MechanicalLocks.ReadCylinder(padlock)?.Valid == false, "corrupt cylinder cannot become fresh unconfigured lock");
         var world = Stub.Make<IWorldAccessor>((m,a) => m.Name == "GetItem" ? blank.Item : null);
-        var restored = VSLockAndKeyModSystem.UnpackStack(VSLockAndKeyModSystem.PackStack(blank), world);
+        var restored = VSMechanicalLocksModSystem.UnpackStack(VSMechanicalLocksModSystem.PackStack(blank), world);
         Check(KeyProfile.IsFinished(restored) && KeyProfile.Read(restored).Matches(KeyProfile.Read(blank)), "network/save stack roundtrip");
     }
     static void Geometry()
     {
         foreach (string name in new[] { "key", "key-jeweled" })
         {
-            var template = JsonConvert.DeserializeObject<Shape>(File.ReadAllText($"resources/assets/vslockandkey/shapes/item/{name}.json"))!;
+            var template = JsonConvert.DeserializeObject<Shape>(File.ReadAllText($"resources/assets/vsmechanicallocks/shapes/item/{name}.json"))!;
             var item = new ItemKey();
             typeof(ItemKey).GetField("template", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(item,template);
             var stack = new ItemStack(item);
@@ -136,10 +136,10 @@ class Program
         var network = Stub.Make<IServerNetworkAPI>((m,a) => m.Name == "GetChannel" ? channel : null);
         var world = Stub.Make<IServerWorldAccessor>((m,a) => m.Name == "get_ElapsedMilliseconds" ? elapsed : null);
         var api = Stub.Make<ICoreServerAPI>((m,a) => m.Name == "get_World" ? world : m.Name == "get_Network" ? network : null);
-        var mod = new VSLockAndKeyModSystem();
-        typeof(VSLockAndKeyModSystem).GetField("<Api>k__BackingField", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, api);
-        typeof(VSLockAndKeyModSystem).GetField("sapi", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, api);
-        var handler = typeof(VSLockAndKeyModSystem).GetMethod("OnFiling", BindingFlags.Instance|BindingFlags.NonPublic)!;
+        var mod = new VSMechanicalLocksModSystem();
+        typeof(VSMechanicalLocksModSystem).GetField("<Api>k__BackingField", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, api);
+        typeof(VSMechanicalLocksModSystem).GetField("sapi", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, api);
+        var handler = typeof(VSMechanicalLocksModSystem).GetMethod("OnFiling", BindingFlags.Instance|BindingFlags.NonPublic)!;
         void Send(string action, string? token = null, int? revision = null) => handler.Invoke(mod, new object[] { player, new FilingPacket { Action=action, Token=token??reply!.Token, Revision=revision??reply?.Revision??0, Tooth=0 } });
         Send("open", ""); var token = reply!.Token;
         Send("start"); elapsed=999; Send("cut");
@@ -168,7 +168,7 @@ class Program
         var entity = new TestPlayer(); entity.Controls.Sneak = true;
         player.TestEntity=entity; player.TestManager=manager; player.TestWorldData=worldData;
         player.Selection = new BlockSelection { Position=pos };
-        var mod = new VSLockAndKeyModSystem();
+        var mod = new VSMechanicalLocksModSystem();
         var loader = Stub.Make<IModLoader>((m,a) => m.Name == "GetModSystem" ? mod : null);
         Type chunkType = typeof(IBlockAccessor).GetMethod("GetChunkAtBlockPos", new[] { typeof(BlockPos) })!.ReturnType;
         object chunk = Stub.Make(chunkType, (m,a) =>
@@ -182,9 +182,9 @@ class Program
         bool build=true;
         var claims = Stub.Make<ILandClaimAPI>((m,a) => m.Name == "TryAccess" ? (EnumBlockAccessFlags)a[2]! != EnumBlockAccessFlags.BuildOrBreak || build : null);
         var padlockItem = new ItemPadlock { ItemId=10, Code=new AssetLocation("game:padlock-iron") };
-        var keyItem = new ItemKey { ItemId=11, Code=new AssetLocation("vslockandkey:key-copper") };
-        var key2Item = new ItemKey { ItemId=12, Code=new AssetLocation("vslockandkey:key-jeweled-gold-ruby") };
-        var ringItem = new ItemKeyring { ItemId=13, Code=new AssetLocation("vslockandkey:keyring-rope") };
+        var keyItem = new ItemKey { ItemId=11, Code=new AssetLocation("vsmechanicallocks:key-copper") };
+        var key2Item = new ItemKey { ItemId=12, Code=new AssetLocation("vsmechanicallocks:key-jeweled-gold-ruby") };
+        var ringItem = new ItemKeyring { ItemId=13, Code=new AssetLocation("vsmechanicallocks:keyring-rope") };
         ringItem.VariantStrict["material"]="rope";
         ICoreServerAPI api = null!;
         var world = Stub.Make<IServerWorldAccessor>((m,a) => m.Name switch
@@ -196,7 +196,7 @@ class Program
         var network = Stub.Make<IServerNetworkAPI>((m,a) => m.Name == "GetChannel" ? channel : null);
         api = Stub.Make<ICoreServerAPI>((m,a) => m.Name switch { "get_World"=>world, "get_Network"=>network, "get_Side"=>EnumAppSide.Server, "get_ModLoader"=>loader, _=>null });
         var locks = new MechanicalLocks(api);
-        typeof(VSLockAndKeyModSystem).GetField("<Locks>k__BackingField", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, locks);
+        typeof(VSMechanicalLocksModSystem).GetField("<Locks>k__BackingField", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, locks);
         void Turn(long? revision = null) => locks.Handle(player, new LockActionPacket { X=pos.X,Y=pos.Y,Z=pos.Z,Dimension=pos.dimension,Revision=revision??locks.Get(pos)?.Revision??0 });
         slot.Itemstack=new ItemStack(padlockItem); build=false; Turn();
         Check(locks.Get(pos)==null && !slot.Empty, "claim BuildOrBreak denial prevents installation");
@@ -244,7 +244,7 @@ class Program
     }
     static void Patches()
     {
-        var harmony = new Harmony("vslockandkey.tests");
+        var harmony = new Harmony("vsmechanicallocks.tests");
         try
         {
             harmony.PatchAll(typeof(ItemKey).Assembly);

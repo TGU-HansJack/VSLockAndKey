@@ -1,6 +1,6 @@
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 /// <summary>Transport session access, unrelated to lock matching or lock ownership.</summary>
 public sealed class KeyringInventory : InventoryGeneric
 {

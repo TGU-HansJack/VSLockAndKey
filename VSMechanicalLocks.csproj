@@ -1,19 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    VSLockAndKey - Vintage Story 1.22.5 build.
-      dotnet build VSLockAndKey_1.22.5.csproj
-      dotnet build VSLockAndKey_1.22.5.csproj -c Release   (also writes Releases/*.zip)
+    Mechanical Locks & Keys - Vintage Story 1.22.x build.
+      dotnet build VSMechanicalLocks.csproj
+      dotnet build VSMechanicalLocks.csproj -c Release   (also writes Releases/vsmechanicallocks_1.0.0.zip)
   -->
 
   <PropertyGroup>
     <VSVersion>1.22.5</VSVersion>
     <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>VSMechanicalLocks</AssemblyName>
   </PropertyGroup>
 
   <!-- Written into the generated modinfo.json -->
   <ItemGroup>
-    <Dependencies Include="game" Version="$(VSVersion)" />
-    <Dependencies Include="survival" Version="$(VSVersion)" />
+    <Dependencies Include="game" Version="1.22.0" />
+    <Dependencies Include="survival" Version="1.22.0" />
   </ItemGroup>
 
   <!--

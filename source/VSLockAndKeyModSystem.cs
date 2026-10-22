@@ -7,14 +7,14 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.Server;
 using Vintagestory.GameContent;
-using VSLockAndKey.Gui;
-[assembly: ModInfo("VSLockAndKey", "vslockandkey")]
-namespace VSLockAndKey;
+using VSMechanicalLocks.Gui;
+[assembly: ModInfo("Mechanical Locks & Keys", "vsmechanicallocks")]
+namespace VSMechanicalLocks;
 
-public class VSLockAndKeyModSystem : ModSystem
+public class VSMechanicalLocksModSystem : ModSystem
 {
-    public const string NetworkChannelId = "vslockandkey";
-    const string HarmonyId = "vslockandkey.mechanical";
+    public const string NetworkChannelId = "vsmechanicallocks";
+    const string HarmonyId = "vsmechanicallocks.mechanical";
     public ICoreAPI Api { get; private set; } = null!;
     public MechanicalLocks Locks { get; private set; } = null!;
     public ModConfig Settings { get; private set; } = new();
@@ -35,21 +35,21 @@ public class VSLockAndKeyModSystem : ModSystem
         public int Tooth = -1;
         public long Started;
     }
-    public static VSLockAndKeyModSystem Get(IWorldAccessor world) => world.Api.ModLoader.GetModSystem<VSLockAndKeyModSystem>();
+    public static VSMechanicalLocksModSystem Get(IWorldAccessor world) => world.Api.ModLoader.GetModSystem<VSMechanicalLocksModSystem>();
     public override void StartPre(ICoreAPI api)
     {
         if (api.Side == EnumAppSide.Server)
         {
-            Settings = api.LoadModConfig<ModConfig>("vslockandkey.json") ?? new();
+            Settings = api.LoadModConfig<ModConfig>("vsmechanicallocks.json") ?? new();
             Settings.KeyringSlotsByMaterial ??= ModConfig.DefaultKeyringSlotsByMaterial();
             Settings.DefaultKeyringSlots = Math.Clamp(Settings.DefaultKeyringSlots, 0, 64);
             foreach (var key in Settings.KeyringSlotsByMaterial.Keys.ToArray()) Settings.KeyringSlotsByMaterial[key] = Math.Clamp(Settings.KeyringSlotsByMaterial[key], 0, 64);
-            api.StoreModConfig(Settings, "vslockandkey.json");
-            api.World.Config.SetString("vslockandkey:config", Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(Settings))));
+            api.StoreModConfig(Settings, "vsmechanicallocks.json");
+            api.World.Config.SetString("vsmechanicallocks:config", Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(Settings))));
         }
         else
         {
-            try { Settings = JsonConvert.DeserializeObject<ModConfig>(Encoding.UTF8.GetString(Convert.FromBase64String(api.World.Config.GetString("vslockandkey:config", "")))) ?? new(); }
+            try { Settings = JsonConvert.DeserializeObject<ModConfig>(Encoding.UTF8.GetString(Convert.FromBase64String(api.World.Config.GetString("vsmechanicallocks:config", "")))) ?? new(); }
             catch { Settings = new(); }
         }
     }
@@ -99,7 +99,7 @@ public class VSLockAndKeyModSystem : ModSystem
                 else filingDialog.Update(p);
             })
             .SetMessageHandler<LockStatePacket>(Locks.Receive)
-            .SetMessageHandler<NoticePacket>(p => api.TriggerIngameError(this, p.Code, Vintagestory.API.Config.Lang.Get("vslockandkey:" + p.Code)));
+            .SetMessageHandler<NoticePacket>(p => api.TriggerIngameError(this, p.Code, Vintagestory.API.Config.Lang.Get("vsmechanicallocks:" + p.Code)));
         api.Event.RegisterGameTickListener(dt =>
         {
             var pos = api.World.Player.CurrentBlockSelection?.Position;

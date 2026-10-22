@@ -4,11 +4,11 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 /// <summary>
 /// A held container item. Right-clicking it (open air, no block targeted) opens its
-/// own inventory dialog - see GuiDialogKeyring and VSLockAndKeyModSystem's
+/// own inventory dialog - see GuiDialogKeyring and VSMechanicalLocksModSystem's
 /// OpenKeyringPacket/KeyringContentsPacket handlers for the open flow. This class
 /// owns the storage format (an attribute-tree-backed slot array on the itemstack
 /// itself). Only a keyring actively held in the main hand can turn a lock.
@@ -19,7 +19,7 @@ public class ItemKeyring : Item
 
     public override void OnHeldInteractStart(ItemSlot slot, EntityAgent byEntity, BlockSelection blockSel, EntitySelection entitySel, bool firstEvent, ref EnumHandHandling handling)
     {
-        if (blockSel != null && byEntity is EntityPlayer player && VSLockAndKeyModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel))
+        if (blockSel != null && byEntity is EntityPlayer player && VSMechanicalLocksModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel))
         {
             handling = EnumHandHandling.PreventDefault;
             return;
@@ -31,7 +31,7 @@ public class ItemKeyring : Item
             if (byEntity.World.Api.Side == EnumAppSide.Client)
             {
                 (byEntity.World.Api as ICoreClientAPI)?.Network
-                    .GetChannel(VSLockAndKeyModSystem.NetworkChannelId)
+                    .GetChannel(VSMechanicalLocksModSystem.NetworkChannelId)
                     .SendPacket(new OpenKeyringPacket());
             }
             return;
@@ -42,7 +42,7 @@ public class ItemKeyring : Item
 
     public static ItemStack?[] GetContents(ItemStack keyringStack, IWorldAccessor world)
     {
-        ModConfig config = VSLockAndKeyModSystem.Get(world).Settings;
+        ModConfig config = VSMechanicalLocksModSystem.Get(world).Settings;
         string material = keyringStack.Collectible.Variant["material"];
         int slots = config != null && config.KeyringSlotsByMaterial.TryGetValue(material, out int configured)
             ? configured

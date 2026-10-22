@@ -5,7 +5,7 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
-namespace VSLockAndKey;
+namespace VSMechanicalLocks;
 
 public class ItemKey : Item, IContainedMeshSource
 {
@@ -14,12 +14,12 @@ public class ItemKey : Item, IContainedMeshSource
     readonly object shapeLock = new();
     public override void OnHeldInteractStart(ItemSlot slot, EntityAgent byEntity, BlockSelection blockSel, EntitySelection entitySel, bool firstEvent, ref EnumHandHandling handling)
     {
-        if (blockSel != null && byEntity is EntityPlayer player && VSLockAndKeyModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel))
+        if (blockSel != null && byEntity is EntityPlayer player && VSMechanicalLocksModSystem.Get(byEntity.World).Locks.Intercept(player.Player, blockSel))
         { handling = EnumHandHandling.PreventDefault; return; }
         if (blockSel == null && byEntity.LeftHandItemSlot.Itemstack?.Collectible is ItemKeyFile)
         {
             handling = EnumHandHandling.PreventDefault;
-            if (byEntity.World.Api is ICoreClientAPI client) client.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(new FilingPacket { Action = "open" });
+            if (byEntity.World.Api is ICoreClientAPI client) client.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new FilingPacket { Action = "open" });
             return;
         }
         base.OnHeldInteractStart(slot, byEntity, blockSel, entitySel, firstEvent, ref handling);
@@ -28,8 +28,8 @@ public class ItemKey : Item, IContainedMeshSource
     {
         base.GetHeldItemInfo(slot, text, world, withDebugInfo);
         var profile = KeyProfile.Read(slot.Itemstack!);
-        text.AppendLine(Lang.Get("vslockandkey:key-" + (!profile.Valid ? "invalid" : !profile.Cut ? "blank" : KeyProfile.IsFinished(slot.Itemstack!) ? "finished" : "in-progress")));
-        text.AppendLine(Lang.Get("vslockandkey:key-help"));
+        text.AppendLine(Lang.Get("vsmechanicallocks:key-" + (!profile.Valid ? "invalid" : !profile.Cut ? "blank" : KeyProfile.IsFinished(slot.Itemstack!) ? "finished" : "in-progress")));
+        text.AppendLine(Lang.Get("vsmechanicallocks:key-help"));
     }
 #if VS121
     public override void OnCreatedByCrafting(ItemSlot[] inputs, ItemSlot outputSlot, GridRecipe recipe)

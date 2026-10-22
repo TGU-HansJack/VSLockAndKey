@@ -2,7 +2,7 @@ using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
-namespace VSLockAndKey.Gui;
+namespace VSMechanicalLocks.Gui;
 
 public sealed class GuiDialogKeyFile : GuiDialogGeneric
 {
@@ -17,17 +17,17 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     bool waiting;
     long started;
     public override string ToggleKeyCombinationCode => null!;
-    public GuiDialogKeyFile(ICoreClientAPI api, FilingStatePacket packet) : base(Lang.Get("vslockandkey:keyfile-title"), api)
+    public GuiDialogKeyFile(ICoreClientAPI api, FilingStatePacket packet) : base(Lang.Get("vsmechanicallocks:keyfile-title"), api)
     {
         Token = packet.Token;
         revision = packet.Revision;
-        preview.Itemstack = VSLockAndKeyModSystem.UnpackStack(packet.Stack, api.World);
+        preview.Itemstack = VSMechanicalLocksModSystem.UnpackStack(packet.Stack, api.World);
         var bg = ElementBounds.Fill.WithFixedPadding(GuiStyle.ElementToDialogPadding);
         bg.BothSizing = ElementSizing.FitToChildren;
         var composer = api.Gui.CreateCompo("vlk-filing", ElementStdBounds.AutosizedMainDialog.WithAlignment(EnumDialogArea.CenterMiddle))
-            .AddShadedDialogBG(bg, true).AddDialogTitleBar(Lang.Get("vslockandkey:keyfile-title"), () => TryClose())
+            .AddShadedDialogBG(bg, true).AddDialogTitleBar(Lang.Get("vsmechanicallocks:keyfile-title"), () => TryClose())
             .BeginChildElements(bg)
-            .AddStaticText(Lang.Get("vslockandkey:filing-instructions"), CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 30, 400, 55));
+            .AddStaticText(Lang.Get("vsmechanicallocks:filing-instructions"), CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 30, 400, 55));
         composer.AddInteractiveElement(new GuiElementCustomRender(api, ElementBounds.Fixed(0, 90, 400, 95), (dt, b) =>
         {
             api.Render.RenderItemstackToGui(preview, b.renderX + b.OuterWidth / 2, b.renderY + b.OuterHeight / 2, 100, (float)GuiElement.scaled(85), -1, true, false, false);
@@ -39,8 +39,8 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
             int tooth = i;
             composer.AddSmallButton((i + 1).ToString(), () => { Cancel(); selected = tooth; chart.Redraw(); return true; }, ElementBounds.Fixed(i * 50, 300, 44, 30), key: "tooth" + i);
         }
-        composer.AddSmallButton(Lang.Get("vslockandkey:hold-file"), () => true, fileBounds)
-            .AddSmallButton(Lang.Get("vslockandkey:finish"), () => { if (waiting) return true; Cancel(); Send("finish"); return true; }, ElementBounds.Fixed(260, 350, 140, 45))
+        composer.AddSmallButton(Lang.Get("vsmechanicallocks:hold-file"), () => true, fileBounds)
+            .AddSmallButton(Lang.Get("vsmechanicallocks:finish"), () => { if (waiting) return true; Cancel(); Send("finish"); return true; }, ElementBounds.Fixed(260, 350, 140, 45))
             .AddDynamicText("", CairoFont.WhiteSmallText(), ElementBounds.Fixed(0, 410, 400, 45), "progress")
             .EndChildElements();
         SingleComposer = composer.Compose();
@@ -62,11 +62,11 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
     public void Update(FilingStatePacket packet)
     {
         revision = packet.Revision;
-        preview.Itemstack = VSLockAndKeyModSystem.UnpackStack(packet.Stack, capi.World);
+        preview.Itemstack = VSMechanicalLocksModSystem.UnpackStack(packet.Stack, capi.World);
         waiting = false; chart.Redraw();
         if (holding) BeginStroke();
     }
-    void Send(string action) => capi.Network.GetChannel(VSLockAndKeyModSystem.NetworkChannelId).SendPacket(new FilingPacket { Action = action, Token = Token, Revision = revision, Tooth = selected });
+    void Send(string action) => capi.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new FilingPacket { Action = action, Token = Token, Revision = revision, Tooth = selected });
     void BeginStroke()
     {
         var profile = KeyProfile.Read(preview.Itemstack!);
@@ -91,7 +91,7 @@ public sealed class GuiDialogKeyFile : GuiDialogGeneric
         if (holding && !waiting && capi.World.ElapsedMilliseconds - started >= 1050)
         { Send("cut"); waiting = true; }
         string state = KeyProfile.IsFinished(preview.Itemstack!) ? "key-finished" : KeyProfile.Read(preview.Itemstack!).Cut ? "key-in-progress" : "key-blank";
-        SingleComposer.GetDynamicText("progress").SetNewText(Lang.Get("vslockandkey:" + state) + (holding ? "  " + Math.Min(100, (capi.World.ElapsedMilliseconds - started) / 10) + "%" : ""));
+        SingleComposer.GetDynamicText("progress").SetNewText(Lang.Get("vsmechanicallocks:" + state) + (holding ? "  " + Math.Min(100, (capi.World.ElapsedMilliseconds - started) / 10) + "%" : ""));
         base.OnRenderGUI(dt);
     }
     public override void OnGuiClosed()

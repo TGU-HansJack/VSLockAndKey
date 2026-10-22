@@ -37,6 +37,6 @@
   "name": "Key Mold",
   "output": {
     "type": "block",
-    "code": "vslockandkey:keymold-raw{type}-normal-north"
+    "code": "vsmechanicallocks:keymold-raw{type}-normal-north"
   }
 }
