@@ -11,7 +11,7 @@
     This fork currently targets the Vintage Story 1.22.x series.
   -->
   <PropertyGroup>
-    <!-- Vintage Story 1.22.5 -->
-    <GameDirectory_1_22_5></GameDirectory_1_22_5>
+    <!-- Vintage Story 1.22.7 -->
+    <GameDirectory_1_22_7></GameDirectory_1_22_7>
   </PropertyGroup>
 </Project>

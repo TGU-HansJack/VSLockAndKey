@@ -18,6 +18,7 @@ public sealed class MechanicalLocks
     long revision = DateTime.UtcNow.Ticks;
     long lastRequest;
     string lastPosition = "";
+    public event Action<BlockPos, InstalledLock?>? ClientStateChanged;
     public MechanicalLocks(ICoreAPI api) { this.api = api; }
     public BlockPos Canonical(BlockPos input)
     {
@@ -41,6 +42,7 @@ public sealed class MechanicalLocks
         pos = Canonical(pos);
         var data = ReadChunk(pos);
         if (!data.TryGetValue(PositionKey(pos), out var record)) return null;
+        record.Profile?.UpgradeLegacy();
         return record.BlockCode == api.World.BlockAccessor.GetBlock(pos).Code?.ToString() ? record : null;
     }
     public bool IsLocked(BlockPos pos) => Get(pos)?.Locked == true;
@@ -52,6 +54,7 @@ public sealed class MechanicalLocks
         if (state == null) data.Remove(PositionKey(pos)); else data[PositionKey(pos)] = state;
         chunk.SetModdata(ChunkData, Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data)));
         if (api.Side == EnumAppSide.Server) chunk.MarkModified();
+        else ClientStateChanged?.Invoke(pos.Copy(), state);
         if (broadcast && api is ICoreServerAPI server) server.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).BroadcastPacket(Packet(pos, state));
     }
     static LockStatePacket Packet(BlockPos pos, InstalledLock? state) => new() { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Json = JsonConvert.SerializeObject(state) };
@@ -75,7 +78,7 @@ public sealed class MechanicalLocks
     {
         if (response != EnumWorldAccessResponse.LandClaimed || flags != EnumBlockAccessFlags.Use || selection == null || !player.Entity.Alive || player.WorldData.CurrentGameMode == EnumGameMode.Spectator) return response;
         var state = Get(selection.Position);
-        if (state != null && (!state.Locked || (player.Entity.Controls.Sneak && HeldFits(player, state))))
+        if (state != null && (!state.Locked || HeldFits(player, state)))
         {
             // Vanilla returns LandClaimed before consulting CanUseBlock handlers.
             // Consult those handlers now so the local claim exception cannot skip another mod's veto.
@@ -84,7 +87,7 @@ public sealed class MechanicalLocks
         }
         return response;
     }
-    public void Request(BlockPos input, bool query = false)
+    public void Request(BlockPos input, bool query = false, bool ctrl = false)
     {
         if (api is not ICoreClientAPI client) return;
         var pos = Canonical(input);
@@ -94,32 +97,55 @@ public sealed class MechanicalLocks
             if (lastPosition == key && api.World.ElapsedMilliseconds - lastRequest < 200) return;
             lastPosition = key; lastRequest = api.World.ElapsedMilliseconds;
         }
-        client.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new LockActionPacket { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Revision = Get(pos)?.Revision ?? 0, Query = query });
+        client.Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new LockActionPacket { X = pos.X, Y = pos.Y, Z = pos.Z, Dimension = pos.dimension, Revision = Get(pos)?.Revision ?? 0, Query = query, Ctrl = ctrl });
     }
     public void Notice(IServerPlayer player, string code) => ((ICoreServerAPI)api).Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId).SendPacket(new NoticePacket { Code = code }, player);
     public bool Intercept(IPlayer player, BlockSelection selection)
     {
         if (selection == null) return false;
         var held = player.InventoryManager.ActiveHotbarSlot.Itemstack?.Collectible;
-        bool recognized = held is ItemPadlock || (player.Entity.Controls.Sneak && (held is ItemKey || held is ItemKeyring || (held is ItemPlumbAndSquare && Get(selection.Position) != null)));
+        var pos = Canonical(selection.Position);
+        var state = Get(pos);
+        bool recognized = held is ItemPadlock && api.World.BlockAccessor.GetBlock(pos).HasBehavior<BlockBehaviorLockable>()
+            || state != null && (player.Entity.Controls.CtrlKey && (held is ItemKey || held is ItemKeyring) || player.Entity.Controls.Sneak && held is ItemPlumbAndSquare);
         if (!recognized) return false;
-        if (api.Side == EnumAppSide.Client) Request(selection.Position);
+        if (api.Side == EnumAppSide.Client) Request(selection.Position, ctrl: player.Entity.Controls.CtrlKey);
         return true;
+    }
+    public void DropOnBroken(BlockPos input)
+    {
+        if (api.Side != EnumAppSide.Server) return;
+        var pos = Canonical(input);
+        if (!input.Equals(pos)) return;
+        var state = Get(pos);
+        if (state == null) return;
+        var item = api.World.GetItem(new AssetLocation(state.PadlockCode));
+        if (item != null)
+        {
+            var drop = new ItemStack(item);
+            if (state.Profile != null) WriteCylinder(drop, state.Profile);
+            api.World.SpawnItemEntity(drop, new Vec3d(pos.X + .5, pos.InternalY + 1, pos.Z + .5));
+        }
+        Store(pos, null, true);
     }
     public void Handle(IServerPlayer player, LockActionPacket packet)
     {
         var requested = new BlockPos(packet.X, packet.Y, packet.Z, packet.Dimension);
-        if (!player.Entity.Alive || player.WorldData.CurrentGameMode == EnumGameMode.Spectator || !InReach(player, requested)) return;
+        if (!player.Entity.Alive || player.WorldData.CurrentGameMode == EnumGameMode.Spectator) return;
         var pos = Canonical(requested);
-        if (!InReach(player, pos)) return;
         var block = api.World.BlockAccessor.GetBlock(pos);
         if (!block.HasBehavior<BlockBehaviorLockable>()) return;
         var state = Get(pos);
         var channel = ((ICoreServerAPI)api).Network.GetChannel(VSMechanicalLocksModSystem.NetworkChannelId);
-        if (packet.Query) { channel.SendPacket(Packet(pos, state), player); return; }
+        if (packet.Query)
+        {
+            if (InReach(player, pos)) channel.SendPacket(Packet(pos, state), player);
+            return;
+        }
         // Re-derive the selected controller, held stack and action from current server state.
+        // CurrentBlockSelection is the vanilla ray selection; do not impose another reach limit.
         var selection = player.CurrentBlockSelection;
-        if (selection == null || !pos.Equals(Canonical(selection.Position))) return;
+        if (selection == null || !pos.Equals(Canonical(selection.Position))) { Notice(player, "aim-at-lock"); return; }
         if (packet.Revision != (state?.Revision ?? 0)) { channel.SendPacket(Packet(pos, state), player); Notice(player, "state-changed"); return; }
         var slot = player.InventoryManager.ActiveHotbarSlot;
         var stack = slot.Itemstack;
@@ -134,9 +160,10 @@ public sealed class MechanicalLocks
             slot.TakeOut(1); slot.MarkDirty();
             Notice(player, "installed");
         }
-        else if (!player.Entity.Controls.Sneak || state == null) return;
+        else if (state == null) return;
         else if (stack.Collectible is ItemPlumbAndSquare)
         {
+            if (!player.Entity.Controls.Sneak) return;
             if (!api.World.Claims.TryAccess(player, pos, EnumBlockAccessFlags.BuildOrBreak)) return;
             if (state.Locked) { Notice(player, "detach-locked"); return; }
             var item = api.World.GetItem(new AssetLocation(state.PadlockCode));
@@ -149,6 +176,7 @@ public sealed class MechanicalLocks
         }
         else if (stack.Collectible is ItemKey || stack.Collectible is ItemKeyring)
         {
+            if (!packet.Ctrl) return;
             if (!api.World.Claims.TryAccess(player, pos, EnumBlockAccessFlags.Use)) return;
             if (state.Profile == null)
             {
@@ -181,7 +209,12 @@ public sealed class MechanicalLocks
     {
         string json = stack.Attributes.GetString(CylinderAttribute, "");
         if (json.Length == 0) return null;
-        try { return JsonConvert.DeserializeObject<KeyProfile>(json) ?? new KeyProfile { Version = -1 }; }
+        try
+        {
+            var profile = JsonConvert.DeserializeObject<KeyProfile>(json) ?? new KeyProfile { Version = -1 };
+            profile.UpgradeLegacy();
+            return profile;
+        }
         catch (JsonException) { return new KeyProfile { Version = -1 }; }
     }
     public static void WriteCylinder(ItemStack stack, KeyProfile profile) => stack.Attributes.SetString(CylinderAttribute, JsonConvert.SerializeObject(profile));

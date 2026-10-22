@@ -1,9 +1,13 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
+using System.Runtime.InteropServices;
+using System.Text;
 using HarmonyLib;
 using Newtonsoft.Json;
 using Vintagestory.API.Common;
+using Vintagestory.API.Client;
+using Vintagestory.API.Config;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
@@ -37,7 +41,55 @@ class Program
     [MethodImpl(MethodImplOptions.NoInlining)]
     static void Run()
     {
-        Profiles(); Geometry(); Persistence(); Filing(); LockLifecycle(); Patches();
+        Profiles(); Geometry(); Persistence(); Filing(); LockLifecycle(); Patches(); Tooltips();
+    }
+    static void Tooltips()
+    {
+        NativeLibrary.SetDllImportResolver(typeof(Cairo.Context).Assembly, (name, assembly, path) =>
+        {
+            string file = Path.Combine(game, "Lib", name);
+            if (!File.Exists(file) && OperatingSystem.IsWindows()) file += ".dll";
+            return File.Exists(file) ? NativeLibrary.Load(file) : IntPtr.Zero;
+        });
+        string previousLocale = Lang.CurrentLocale;
+        Lang.AvailableLanguages["tooltip-test"] = Stub.Make<ITranslationService>((m, a) =>
+            m.Name == "get_LineBreakBehavior" ? EnumLinebreakBehavior.AfterWord : null);
+        Lang.ChangeLanguage("tooltip-test");
+        RuntimeEnv.GUIScale = 1;
+        var api = Stub.Make<ICoreClientAPI>((m, a) => m.Name == "get_Logger" ? Stub.Make<ILogger>((_, _) => null) : null);
+        var font = new CairoFont(16, "Microsoft YaHei", new double[] { 1, 1, 1, 1 });
+        var type = typeof(ItemKey).Assembly.GetType("VSMechanicalLocks.Gui.TooltipText")!;
+        type.GetMethod("Register")!.Invoke(null, null);
+        try
+        {
+            foreach (string locale in new[] { "zh-cn", "en" })
+            {
+                var lang = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText($"resources/assets/vsmechanicallocks/lang/{locale}.json"))!;
+                foreach (string[] keys in new[] { new[] { "key-blank", "key-help" }, new[] { "keyring-help" }, new[] { "padlock-new" } })
+                {
+                    var text = new StringBuilder("Stack: 1\r\n\r\n");
+                    foreach (string key in keys)
+                        typeof(ItemKey).GetMethod("AppendInfoLine", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, new object[] { text, lang["vsmechanicallocks:" + key] });
+                    var components = VtmlUtil.Richtextify(api, text.ToString(), font);
+                    foreach (int width in new[] { 150, 225, 305, 400 })
+                    {
+                        var element = new GuiElementRichtext(api, components, ElementBounds.Fixed(0, 0, width, 1));
+                        element.CalcHeightAndPositions();
+                        var lines = components.OfType<RichTextComponent>().SelectMany(c => c.Lines).Where(l => l.Text.Length > 0).ToArray();
+                        string actual = string.Concat(lines.Select(l => l.Text));
+                        string expected = "Stack: 1" + string.Concat(keys.Select(k => lang["vsmechanicallocks:" + k]));
+                        Check(string.Concat(actual.Where(c => !char.IsWhiteSpace(c))) == string.Concat(expected.Where(c => !char.IsWhiteSpace(c))), $"{locale} tooltip preserves every character at width {width}");
+                        Check(lines.Zip(lines.Skip(1)).All(p => p.Second.Bounds.Y - p.First.Bounds.Y <= p.First.Bounds.Height + 1), $"{locale} tooltip has no empty rows at width {width}");
+                    }
+                }
+            }
+        }
+        finally
+        {
+            type.GetMethod("Unregister")!.Invoke(null, null);
+            Lang.AvailableLanguages.Remove("tooltip-test");
+            Lang.ChangeLanguage(previousLocale);
+        }
     }
     static void Profiles()
     {
@@ -49,10 +101,12 @@ class Program
         Check(KeyProfile.IsFinished(blank), "cut key can finish");
         var copy = profile.Copy(); copy.File(2);
         Check(!copy.Matches(profile) && profile.Heights[2] == 4, "independent geometry copies");
-        Check(!profile.File(-1) && !profile.File(8), "invalid tooth bounds");
+        Check(!profile.File(-1) && !profile.File(16), "invalid tooth bounds");
         for (int i = 0; i < 4; i++) Check(profile.File(2), "remove remaining metal");
         Check(!profile.File(2) && profile.Heights[2] == 0, "cannot add metal or file below zero");
         Check(!new KeyProfile { Heights = new[] { 1 } }.Valid && !new KeyProfile { Version = 3 }.Valid && !new KeyProfile { Spec = "other" }.Matches(profile), "reject incompatible profiles");
+        var legacy = new KeyProfile { Version = 1, Spec = "standard-8", Heights = new[] { 0, 1, 2, 3, 4, 5, 4, 3 } };
+        Check(legacy.UpgradeLegacy() && legacy.Valid && legacy.Heights.SequenceEqual(new[] { 0, 1, 2, 3, 4, 5, 4, 3, 0, 1, 2, 3, 4, 5, 4, 3 }), "legacy key profiles migrate to matching two-layer cuts");
         var jeweled = new ItemStack(new ItemKey { ItemId = 2, Code = new AssetLocation("vsmechanicallocks:key-jeweled-gold-ruby") });
         typeof(CollectibleObject).GetField("api", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(jeweled.Collectible, Stub.Make<ICoreAPI>((m,a) => null));
         var inputs = new[] { new DummySlot(blank) }; var output = new DummySlot(jeweled);
@@ -77,11 +131,13 @@ class Program
             var item = new ItemKey();
             typeof(ItemKey).GetField("template", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(item,template);
             var stack = new ItemStack(item);
-            var profile = new KeyProfile { Heights=new[]{0,1,2,3,4,5,0,5} }; profile.Write(stack,true);
+            var profile = new KeyProfile();
+            profile.Heights = new[] { 0,1,2,3,4,5,0,5, 5,4,3,2,1,0,2,4 };
+            profile.Write(stack,true);
             var blade = (Shape)typeof(ItemKey).GetMethod("Blade", BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(item,new object[]{stack})!;
             var teeth = blade.Elements.Single(e=>e.Name=="Teeth").Children!;
-            Check(teeth.Length==8, name+" has eight physical blade sections");
-            Check(teeth.Select((e,i)=>Math.Abs(e.From![1]-(1-(.125+.175*profile.Heights[i])))<.00001).All(x=>x), name+" mesh geometry follows actual cuts");
+            Check(teeth.Length==16, name+" has eight tooth sections on each blade layer");
+            Check(teeth.Select((e,i)=>Math.Abs(e.From![1]-(1-(.125+.175*profile.Heights[i])))<.00001 && Math.Abs((e.To![0]-e.From[0])-.25f)<.00001).All(x=>x), name+" mesh geometry follows each layer's cuts without changing total thickness");
             Check(template.Elements.Single(e=>e.Name=="Teeth").Children!.All(e=>e.From![1]==0), "rendering never mutates shared asset");
         }
     }
@@ -165,9 +221,10 @@ class Program
         EnumGameMode mode = EnumGameMode.Survival;
         var worldData = Stub.Make<IWorldPlayerData>((m,a) => m.Name == "get_CurrentGameMode" ? mode : null);
         var player = (TestServerPlayer)RuntimeHelpers.GetUninitializedObject(typeof(TestServerPlayer));
-        var entity = new TestPlayer(); entity.Controls.Sneak = true;
+        var entity = new TestPlayer(); entity.Controls.Sneak = false;
         player.TestEntity=entity; player.TestManager=manager; player.TestWorldData=worldData;
-        player.Selection = new BlockSelection { Position=pos };
+        // Lock actions use the vanilla block selection and relative hit position.
+        player.Selection = new BlockSelection { Position=pos, HitPosition=new Vec3d(.1, .1, .1) };
         var mod = new VSMechanicalLocksModSystem();
         var loader = Stub.Make<IModLoader>((m,a) => m.Name == "GetModSystem" ? mod : null);
         Type chunkType = typeof(IBlockAccessor).GetMethod("GetChunkAtBlockPos", new[] { typeof(BlockPos) })!.ReturnType;
@@ -192,12 +249,19 @@ class Program
             "get_BlockAccessor"=>accessor, "get_Claims"=>claims, "get_Api"=>api,
             "GetItem"=>a[0] is AssetLocation ? padlockItem : (int)a[0]! == 11 ? keyItem : key2Item, _=>null
         });
-        var channel = Stub.Make<IServerNetworkChannel>((m,a) => null);
+        string? lastNotice = null;
+        var channel = Stub.Make<IServerNetworkChannel>((m,a) =>
+        {
+            if (m.Name == "SendPacket" && a.FirstOrDefault() is NoticePacket notice) lastNotice = notice.Code;
+            return null;
+        });
         var network = Stub.Make<IServerNetworkAPI>((m,a) => m.Name == "GetChannel" ? channel : null);
         api = Stub.Make<ICoreServerAPI>((m,a) => m.Name switch { "get_World"=>world, "get_Network"=>network, "get_Side"=>EnumAppSide.Server, "get_ModLoader"=>loader, _=>null });
         var locks = new MechanicalLocks(api);
         typeof(VSMechanicalLocksModSystem).GetField("<Locks>k__BackingField", BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(mod, locks);
-        void Turn(long? revision = null) => locks.Handle(player, new LockActionPacket { X=pos.X,Y=pos.Y,Z=pos.Z,Dimension=pos.dimension,Revision=revision??locks.Get(pos)?.Revision??0 });
+        void Turn(long? revision = null, bool ctrl = true) => locks.Handle(player, new LockActionPacket { X=pos.X,Y=pos.Y,Z=pos.Z,Dimension=pos.dimension,Revision=revision??locks.Get(pos)?.Revision??0,Ctrl=ctrl });
+        slot.Itemstack = new ItemStack(keyItem);
+        Check(!locks.Intercept(player, player.Selection), "unlocked vanilla block does not swallow key placement input");
         slot.Itemstack=new ItemStack(padlockItem); build=false; Turn();
         Check(locks.Get(pos)==null && !slot.Empty, "claim BuildOrBreak denial prevents installation");
         build=true; Turn();
@@ -206,6 +270,7 @@ class Program
         slot.Itemstack=key; Turn();
         Check(locks.Get(pos)!.Profile!.Matches(profile) && !locks.IsLocked(pos), "first finished key configures once without locking");
         Turn(0); Check(!locks.IsLocked(pos), "stale lock action cannot change state");
+        Turn(ctrl:false); Check(!locks.IsLocked(pos), "key action without Ctrl does not intercept door right-click");
         var inventory = new InventoryGeneric(1,"test-inventory",null); inventory.Pos=pos; inventory.Api=api;
         container=new TestContainer { Storage=inventory, Api=api, Pos=pos };
         inventory.openedByPlayerGUIds.Add("viewer"); Turn();
@@ -218,16 +283,26 @@ class Program
         Check(locks.IsLocked(pos), "different shape cannot unlock");
         profile.Write(slot.Itemstack,true); Turn();
         Check(!locks.IsLocked(pos), "same shape in a different material and decoration unlocks");
+        slot.Itemstack=key; Turn(); Check(locks.IsLocked(pos), "vanilla door selection position can relock");
+        Turn(); Check(!locks.IsLocked(pos), "vanilla door selection position can unlock");
+        player.Selection = new BlockSelection { Position=new BlockPos(pos.X + 1,pos.Y,pos.Z,pos.dimension) };
+        Turn();
+        Check(!locks.IsLocked(pos) && lastNotice == "aim-at-lock", "wrong vanilla selection is rejected with a clear prompt");
+        player.Selection = new BlockSelection { Position=pos, HitPosition=new Vec3d(.1,.1,.1) };
         Check(!MechanicalInventoryAccess.Allowed(inventory,player,true), "unopened inventory cannot transfer");
         inventory.openedByPlayerGUIds.Add("test");
         Check(MechanicalInventoryAccess.Allowed(inventory,player,true), "unlocked nearby opened inventory can transfer");
+        entity.Pos.X=100;
+        Check(MechanicalInventoryAccess.Allowed(inventory,player,true) && ContainerPacketPatch.Prefix(container,player,1000), "unlocked container access follows vanilla open state without an extra reach limit");
+        entity.Pos.X=0;
         mode=EnumGameMode.Spectator;
         Check(!MechanicalInventoryAccess.Allowed(inventory,player,true) && !ContainerPacketPatch.Prefix(container,player,1000), "spectator cannot access unlocked mechanical container through either packet path");
         mode=EnumGameMode.Survival;
         inventory.openedByPlayerGUIds.Clear();
         var ring=new ItemStack(ringItem); ItemKeyring.SetContents(ring,new ItemStack?[]{key,null}); slot.Itemstack=ring; Turn();
         Check(locks.IsLocked(pos), "held keyring tries matching finished keys");
-        entity.Pos.X=100; Turn(); Check(locks.IsLocked(pos), "out of reach lock request rejected"); entity.Pos.X=0;
+        entity.Pos.X=100; Turn(); Check(!locks.IsLocked(pos), "vanilla selected lock is not subject to an extra fixed reach limit"); entity.Pos.X=0; Turn();
+        Check(locks.IsLocked(pos), "vanilla selected lock can be relocked after returning");
         mode=EnumGameMode.Spectator; Turn(); Check(locks.IsLocked(pos), "spectator cannot turn lock"); mode=EnumGameMode.Survival;
         string claimant="someone"; var selection=new BlockSelection { Position=pos };
         Check(locks.TestAccess(player,selection,EnumBlockAccessFlags.Use,ref claimant,EnumWorldAccessResponse.LandClaimed)==EnumWorldAccessResponse.Granted, "held matching shape permits exact Use in claim");
@@ -235,22 +310,74 @@ class Program
         Check(locks.TestAccess(player,selection,EnumBlockAccessFlags.Use,ref claimant,EnumWorldAccessResponse.DeniedByMod)==EnumWorldAccessResponse.DeniedByMod, "existing mod veto preserved");
         var tool=new ItemStack(new ItemPlumbAndSquare { ItemId=14 }); slot.Itemstack=tool; Turn();
         Check(locks.Get(pos)!=null, "locked padlock cannot be detached");
-        slot.Itemstack=key; Turn(); slot.Itemstack=tool; build=false; Turn();
+        slot.Itemstack=key; Turn(); slot.Itemstack=tool; entity.Controls.Sneak=true; build=false; Turn();
         Check(locks.Get(pos)!=null, "detach respects BuildOrBreak");
-        build=true; Turn(); Check(locks.Get(pos)==null, "unlocked padlock can detach");
+        build=true; Turn(); Check(locks.Get(pos)==null, "unlocked padlock can detach"); entity.Controls.Sneak=false;
         // Reinstalling uses the same persisted cylinder attribute as the detached item.
         var moved=new ItemStack(padlockItem); MechanicalLocks.WriteCylinder(moved,profile); slot.Itemstack=moved; Turn();
         Check(locks.Get(pos)!.Profile!.Matches(profile) && !locks.IsLocked(pos), "reinstalled padlock retains cylinder and starts unlocked");
     }
+    static void ReinforcementCommands()
+    {
+        Check(!new ModConfig().EnableReinforcementPermissionCommands, "reinforcement authorization commands default off");
+        Check(!JsonConvert.DeserializeObject<ModConfig>("{\"DefaultKeyringSlots\":4}")!.EnableReinforcementPermissionCommands, "old configs default authorization commands off");
+        var mod = new VSMechanicalLocksModSystem();
+        var loader = Stub.Make<IModLoader>((m, a) => m.Name == "GetModSystem" ? mod : null);
+        var target = Stub.Make<IServerPlayerData>((m, a) => m.Name == "get_PlayerUID" ? "target" : null);
+        var playerData = Stub.Make<IPlayerDataManager>((m, a) => m.Name == "GetPlayerDataByLastKnownName" ? target : null);
+        var api = Stub.Make<ICoreServerAPI>((m, a) => m.Name switch { "get_ModLoader" => loader, "get_PlayerData" => playerData, _ => null });
+        var reinforcement = new ModSystemBlockReinforcement();
+        AccessTools.Field(typeof(ModSystemBlockReinforcement), "api").SetValue(reinforcement, api);
+        var grants = (Dictionary<string, ReinforcedPrivilegeGrants>)AccessTools.Field(typeof(ModSystemBlockReinforcement), "privGrantsByOwningPlayerUid").GetValue(reinforcement)!;
+        var groupGrants = AccessTools.Field(typeof(ModSystemBlockReinforcement), "privGrantsByOwningGroupUid").GetValue(reinforcement)!;
+        grants["test"] = new ReinforcedPrivilegeGrants();
+        grants["test"].PlayerGrants["existing"] = EnumBlockAccessFlags.Use;
+        string before = JsonConvert.SerializeObject(new object[] { grants, groupGrants });
+        foreach (string name in new[] { "OnCmdGrant", "OnCmdRevoke", "OnCmdGrantGroup", "OnCmdRevokeGroup", "OnCmdGroupGrant", "OnCmdGroupRevoke", "OnCmdGroupGrantGroup", "OnCmdGroupRevokeGroup" })
+        {
+            // Invoke the patched vanilla handler; a disabled command must return before parsing or touching grants.
+            var result = (TextCommandResult)AccessTools.Method(typeof(ModSystemBlockReinforcement), name).Invoke(reinforcement, new object[] { new TextCommandCallingArgs() })!;
+            Check(result.Status == EnumCommandStatus.Error && result.StatusMessage == "vsmechanicallocks:reinforcement-permission-commands-disabled", name + " returns disabled feedback");
+            Check(JsonConvert.SerializeObject(new object[] { grants, groupGrants }) == before, name + " preserves existing player and group grants");
+        }
+        mod.Settings.EnableReinforcementPermissionCommands = JsonConvert.DeserializeObject<ModConfig>("{\"EnableReinforcementPermissionCommands\":true}")!.EnableReinforcementPermissionCommands;
+        var player = (TestServerPlayer)RuntimeHelpers.GetUninitializedObject(typeof(TestServerPlayer));
+        var args = new TextCommandCallingArgs
+        {
+            Caller = new Caller { Player = player },
+            Parsers = new List<ICommandArgumentParser>
+            {
+                Stub.Make<ICommandArgumentParser>((m, a) => m.Name == "GetValue" ? "target" : null),
+                Stub.Make<ICommandArgumentParser>((m, a) => m.Name == "GetValue" ? "use" : null)
+            }
+        };
+        AccessTools.Method(typeof(ModSystemBlockReinforcement), "OnCmdGrant").Invoke(reinforcement, new object[] { args });
+        Check(grants["test"].PlayerGrants["target"] == EnumBlockAccessFlags.Use, "enabled command reaches vanilla grant handler");
+        AccessTools.Method(typeof(ModSystemBlockReinforcement), "OnCmdRevoke").Invoke(reinforcement, new object[] { args });
+        Check(!grants["test"].PlayerGrants.ContainsKey("target"), "enabled command reaches vanilla revoke handler");
+        mod.Settings.EnableReinforcementPermissionCommands = false;
+        reinforcement.SetPlayerPrivilege(player, "api-target", EnumBlockAccessFlags.Use);
+        Check(grants["test"].PlayerGrants["api-target"] == EnumBlockAccessFlags.Use, "command switch preserves vanilla privilege API");
+    }
     static void Patches()
     {
         var harmony = new Harmony("vsmechanicallocks.tests");
+        string previousLocale = Lang.CurrentLocale;
+        Lang.AvailableLanguages["command-test"] = Stub.Make<ITranslationService>((m, a) =>
+            m.Name == "HasTranslation" ? true : m.ReturnType == typeof(string) && a.Length > 0 ? a[0] as string : null);
+        Lang.ChangeLanguage("command-test");
         try
         {
             harmony.PatchAll(typeof(ItemKey).Assembly);
             Check(harmony.GetPatchedMethods().Count() >= 10, "all Harmony signatures apply to this game version");
+            ReinforcementCommands();
         }
-        finally { harmony.UnpatchAll(harmony.Id); }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            Lang.AvailableLanguages.Remove("command-test");
+            Lang.ChangeLanguage(previousLocale);
+        }
     }
 }
 public class Stub : DispatchProxy

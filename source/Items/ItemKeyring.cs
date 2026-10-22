@@ -1,6 +1,7 @@
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
+using Vintagestory.API.Config;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 
@@ -16,6 +17,12 @@ namespace VSMechanicalLocks;
 public class ItemKeyring : Item
 {
     public const string ContentsAttr = "vlkContents";
+
+    public override void GetHeldItemInfo(ItemSlot slot, System.Text.StringBuilder text, IWorldAccessor world, bool withDebugInfo)
+    {
+        base.GetHeldItemInfo(slot, text, world, withDebugInfo);
+        ItemKey.AppendInfoLine(text, Lang.Get("vsmechanicallocks:keyring-help"));
+    }
 
     public override void OnHeldInteractStart(ItemSlot slot, EntityAgent byEntity, BlockSelection blockSel, EntitySelection entitySel, bool firstEvent, ref EnumHandHandling handling)
     {

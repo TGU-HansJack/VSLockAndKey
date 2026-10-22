@@ -78,7 +78,7 @@ public static class ContainerPacketPatch
         var locks = VSMechanicalLocksModSystem.Get(__instance.Api.World).Locks;
         if (locks.Get(__instance.Pos) == null) return true;
         return player.Entity.Alive && player.WorldData.CurrentGameMode != EnumGameMode.Spectator
-            && locks.InReach(player, __instance.Pos) && !locks.IsLocked(__instance.Pos)
+            && !locks.IsLocked(__instance.Pos)
             && (packetid >= 1000 || __instance.Inventory.HasOpened(player));
     }
 }
@@ -95,7 +95,7 @@ public static class PadlockInfoPatch
     public static void Postfix(CollectibleObject __instance, ItemSlot inSlot, System.Text.StringBuilder dsc)
     {
         if (__instance is ItemPadlock && inSlot.Itemstack != null)
-            dsc.AppendLine(Vintagestory.API.Config.Lang.Get("vsmechanicallocks:padlock-" + (MechanicalLocks.ReadCylinder(inSlot.Itemstack) == null ? "new" : "configured")));
+            ItemKey.AppendInfoLine(dsc, Vintagestory.API.Config.Lang.Get("vsmechanicallocks:padlock-" + (MechanicalLocks.ReadCylinder(inSlot.Itemstack) == null ? "new" : "configured")));
     }
 }
 
@@ -111,7 +111,7 @@ public static class MechanicalInventoryAccess
         var state = locks.Get(inventory.Pos);
         if (state == null) return true;
         return player.Entity.Alive && player.WorldData.CurrentGameMode != EnumGameMode.Spectator
-            && !state.Locked && locks.InReach(player, inventory.Pos)
+            && !state.Locked
             && (!requireOpen || inventory.HasOpened(player))
             && inventory.Api.World.Claims.TryAccess(player, inventory.Pos, EnumBlockAccessFlags.Use);
     }

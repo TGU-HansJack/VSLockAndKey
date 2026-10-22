@@ -84,6 +84,7 @@ public class VSMechanicalLocksModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        TooltipText.Register();
         api.Network.GetChannel(NetworkChannelId)
             .SetMessageHandler<KeyringContentsPacket>(OnKeyringContentsPacket)
             .SetMessageHandler<FilingStatePacket>(p =>
@@ -177,7 +178,7 @@ public class VSMechanicalLocksModSystem : ModSystem
         switch (packet.Action)
         {
             case "start":
-                if (s.File?.Collectible is not ItemKeyFile || packet.Tooth < 0 || packet.Tooth >= 8 || profile.Heights[packet.Tooth] == 0) return;
+                if (s.File?.Collectible is not ItemKeyFile || packet.Tooth < 0 || packet.Tooth >= 16 || profile.Heights[packet.Tooth] == 0) return;
                 s.Tooth = packet.Tooth; s.Started = Api.World.ElapsedMilliseconds; return;
             case "cancel": s.Tooth = -1; return;
             case "cut":
@@ -198,6 +199,7 @@ public class VSMechanicalLocksModSystem : ModSystem
     }
     public override void Dispose()
     {
+        if (capi != null) TooltipText.Unregister();
         filingDialog?.TryClose(); filingDialog?.Dispose(); keyringDialog?.TryClose(); keyringDialog?.Dispose(); sessions.Clear(); keyrings.Clear();
         if (Api != null) Api.Event.OnTestBlockAccess -= Locks.TestAccess;
         harmony?.UnpatchAll(HarmonyId);

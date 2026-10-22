@@ -2,11 +2,11 @@
   <!--
     Mechanical Locks & Keys - Vintage Story 1.22.x build.
       dotnet build VSMechanicalLocks.csproj
-      dotnet build VSMechanicalLocks.csproj -c Release   (also writes Releases/vsmechanicallocks_1.0.0.zip)
+      dotnet build VSMechanicalLocks.csproj -c Release   (also writes Releases/vsmechanicallocks_1.0.1.zip)
   -->
 
   <PropertyGroup>
-    <VSVersion>1.22.5</VSVersion>
+    <VSVersion>1.22.7</VSVersion>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>VSMechanicalLocks</AssemblyName>
   </PropertyGroup>
@@ -19,13 +19,13 @@
 
   <!--
     Game path resolution, first non-empty wins:
-      1. GameDirectory_1_22_5 from Properties/localSettings.props
-      2. VINTAGE_STORY_1_22_5 environment variable
+      1. GameDirectory_1_22_7 from Properties/localSettings.props
+      2. VINTAGE_STORY_1_22_7 environment variable
       3. VINTAGE_STORY environment variable
   -->
   <PropertyGroup>
-    <GameDirectory Condition="'$(GameDirectory_1_22_5)' != ''">$(GameDirectory_1_22_5)</GameDirectory>
-    <GameDirectory Condition="'$(GameDirectory)' == '' and '$(VINTAGE_STORY_1_22_5)' != ''">$(VINTAGE_STORY_1_22_5)</GameDirectory>
+    <GameDirectory Condition="'$(GameDirectory_1_22_7)' != ''">$(GameDirectory_1_22_7)</GameDirectory>
+    <GameDirectory Condition="'$(GameDirectory)' == '' and '$(VINTAGE_STORY_1_22_7)' != ''">$(VINTAGE_STORY_1_22_7)</GameDirectory>
     <GameDirectory Condition="'$(GameDirectory)' == ''">$(VINTAGE_STORY)</GameDirectory>
   </PropertyGroup>
 

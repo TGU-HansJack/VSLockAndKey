@@ -12,6 +12,11 @@ public sealed class BlockBehaviorMechanicalLock : BlockBehavior
         if (locks.IsLocked(selection.Position)) { handling = EnumHandling.PreventSubsequent; return false; }
         return base.OnBlockInteractStart(world, byPlayer, selection, ref handling);
     }
+    public override void OnBlockBroken(IWorldAccessor world, BlockPos pos, IPlayer byPlayer, float dropQuantityMultiplier, ref EnumHandling handling)
+    {
+        VSMechanicalLocksModSystem.Get(world).Locks.DropOnBroken(pos);
+        handling = EnumHandling.PassThrough;
+    }
     public override void OnBlockRemoved(IWorldAccessor world, BlockPos pos, ref EnumHandling handling) => VSMechanicalLocksModSystem.Get(world).Locks.Remove(pos);
     public override string GetPlacedBlockInfo(IWorldAccessor world, BlockPos pos, IPlayer player)
     {

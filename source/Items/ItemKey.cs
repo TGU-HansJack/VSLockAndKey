@@ -28,8 +28,15 @@ public class ItemKey : Item, IContainedMeshSource
     {
         base.GetHeldItemInfo(slot, text, world, withDebugInfo);
         var profile = KeyProfile.Read(slot.Itemstack!);
-        text.AppendLine(Lang.Get("vsmechanicallocks:key-" + (!profile.Valid ? "invalid" : !profile.Cut ? "blank" : KeyProfile.IsFinished(slot.Itemstack!) ? "finished" : "in-progress")));
-        text.AppendLine(Lang.Get("vsmechanicallocks:key-help"));
+        AppendInfoLine(text, Lang.Get("vsmechanicallocks:key-" + (!profile.Valid ? "invalid" : !profile.Cut ? "blank" : KeyProfile.IsFinished(slot.Itemstack!) ? "finished" : "in-progress")));
+        AppendInfoLine(text, Lang.Get("vsmechanicallocks:key-help"));
+    }
+    internal static void AppendInfoLine(StringBuilder text, string line)
+    {
+        while (text.Length > 0 && text[^1] is '\r' or '\n') text.Length--;
+        if (text.Length > 0) text.Append('\n');
+        text.Append('<').Append(Gui.TooltipText.Tag).Append('>').Append(line.Trim())
+            .Append("</").Append(Gui.TooltipText.Tag).Append('>');
     }
 #if VS121
     public override void OnCreatedByCrafting(ItemSlot[] inputs, ItemSlot outputSlot, GridRecipe recipe)
@@ -52,7 +59,20 @@ public class ItemKey : Item, IContainedMeshSource
             var heights = profile.Valid ? profile.Heights : new KeyProfile().Heights;
             foreach (var root in shape.Elements)
                 if (root.Name == "Teeth")
-                    for (int i = 0; i < 8; i++) root.Children![i].From![1] = 1 - (.125 + .175 * heights[i]);
+                {
+                    var singleLayer = root.Children!;
+                    var doubleLayer = new ShapeElement[16];
+                    for (int layer = 0; layer < 2; layer++)
+                    for (int tooth = 0; tooth < 8; tooth++)
+                    {
+                        var element = singleLayer[tooth].Clone();
+                        element.From![0] = layer * .25f;
+                        element.To![0] = (layer + 1) * .25f;
+                        element.From[1] = 1 - (.125 + .175 * heights[layer * 8 + tooth]);
+                        doubleLayer[layer * 8 + tooth] = element;
+                    }
+                    root.Children = doubleLayer;
+                }
             return shape;
         }
     }

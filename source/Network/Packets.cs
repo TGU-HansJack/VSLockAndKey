@@ -22,6 +22,7 @@ namespace VSMechanicalLocks;
     [ProtoMember(4)] public int Dimension;
     [ProtoMember(5)] public long Revision;
     [ProtoMember(6)] public bool Query;
+    [ProtoMember(7)] public bool Ctrl;
 }
 [ProtoContract] public class LockStatePacket
 {

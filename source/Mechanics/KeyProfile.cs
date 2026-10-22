@@ -8,16 +8,24 @@ public sealed class KeyProfile
 {
     public const string Attribute = "vlkProfile";
     public const string FinishedAttribute = "vlkFinished";
-    public int Version { get; set; } = 1;
-    public string Spec { get; set; } = "standard-8";
-    public int[] Heights { get; set; } = Enumerable.Repeat(5, 8).ToArray();
-    public bool Valid => Version == 1 && Spec == "standard-8" && Heights is { Length: 8 } && Heights.All(h => h >= 0 && h <= 5);
+    public int Version { get; set; } = 2;
+    public string Spec { get; set; } = "double-8";
+    public int[] Heights { get; set; } = Enumerable.Repeat(5, 16).ToArray();
+    public bool Valid => Version == 2 && Spec == "double-8" && Heights is { Length: 16 } && Heights.All(h => h >= 0 && h <= 5);
     public bool Cut => Valid && Heights.Any(h => h < 5);
     public bool Matches(KeyProfile? other) => Valid && other?.Valid == true && Version == other.Version && Spec == other.Spec && Heights.SequenceEqual(other.Heights);
     public KeyProfile Copy() => new() { Version = Version, Spec = Spec, Heights = (int[])Heights.Clone() };
+    public bool UpgradeLegacy()
+    {
+        if (Version != 1 || Spec != "standard-8" || Heights is not { Length: 8 } || Heights.Any(h => h < 0 || h > 5)) return false;
+        Heights = Heights.Concat(Heights).ToArray();
+        Version = 2;
+        Spec = "double-8";
+        return true;
+    }
     public bool File(int tooth)
     {
-        if (!Valid || tooth < 0 || tooth >= 8 || Heights[tooth] == 0) return false;
+        if (!Valid || tooth < 0 || tooth >= 16 || Heights[tooth] == 0) return false;
         Heights[tooth]--;
         return true;
     }
@@ -25,7 +33,9 @@ public sealed class KeyProfile
     {
         var tree = stack.Attributes.GetTreeAttribute(Attribute);
         if (tree == null) return new(); // Cast and forged keys are solid blanks.
-        return new() { Version = tree.GetInt("version"), Spec = tree.GetString("spec", ""), Heights = (tree["heights"] as IntArrayAttribute)?.value ?? Array.Empty<int>() };
+        var profile = new KeyProfile { Version = tree.GetInt("version"), Spec = tree.GetString("spec", ""), Heights = (tree["heights"] as IntArrayAttribute)?.value ?? Array.Empty<int>() };
+        profile.UpgradeLegacy();
+        return profile;
     }
     public void Write(ItemStack stack, bool finished)
     {

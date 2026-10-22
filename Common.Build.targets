@@ -3,7 +3,7 @@
     Common.Build.targets - shared MSBuild logic for every <ModName>_<vsver>.csproj.
 
     Each .csproj defines, before importing this file:
-      $(VSVersion)       e.g. 1.22.5
+      $(VSVersion)       e.g. 1.22.7
       $(TargetFramework) e.g. net8.0
       $(GameDirectory)   resolved via localSettings.props or environment vars
       <Dependencies>     items with Version metadata, written into modinfo.json
